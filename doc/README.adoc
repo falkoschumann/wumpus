@@ -1,0 +1,36 @@
+= Hunt the Wumpus
+
+== User Stories
+
+=== Starte Spiel
+
+* Die Höhle des Wumpus besteht aus 20 Räumen mit je 3 Tunneln zu einem anderen Raum (siehe Dodekaeder)
+* Platziere in 2 zufälligen Räumen je ein bodenloses Loch
+* Platziere in 2 zufälligen Räumen je eine Superfledermaus
+* Platziere in zufälligen den Wumpus
+* Platziere in zufälligen den Spieler
+* Bodenloses Loch, Superfledermaus, Wumpus oder Spieler dürfen nicht im selben Raum platziert werden
+
+=== Bewege Spieler
+
+* Bewege Spieler in einen der angrenzenden Räume
+* Wenn der Spieler einen Raum mit dem Wumpus betritt, verliert er
+* Wenn der Spieler einen Raum mit einem bodenlosen Loch betritt, verliert er
+* Wenn der Spieler einen Raum mit einer Superfledermaus betritt, wird er in einen zufälligen anderen Raum versetzt
+
+=== Schieße krummen Pfeil
+
+* Spieler legt die Anzahl der Räume fest, die der Pfeil durchqueren soll (1-5)
+* Spieler legt jeden als Ziel zu durchquerenden Raum fest
+* Wenn zum angegebener Raum kein Tunnel führt, nimm der krumme Pfeil einen zufälligen Tunnel
+* Wenn der krumme Pfeil den Wumpus trifft, gewinnt der Spieler
+* Wenn der krumme Pfeil den Wumpus nicht triff, bewegt sich der Wumpus einen raum weiter (P=0,75) oder er bleibt stehen (P=0,25)
+* Wenn der Spieler seine 5 Pfeile verschossen hat, ohne zu treffen, verliert er
+
+=== Beschreibe Raum
+
+* Nenne den Raum, in dem sich der Spieler befindet
+* Liste die angrenzenden Räume auf
+* Wenn sich der Wumpus in einem der angrenzenden Räume befindet, warne den Spieler
+* Wenn sich ein bodenloses Loch in einem der angrenzenden Räume befindet, warne den Spieler
+* Wenn sich eine Superfledermaus in einem der angrenzenden Räume befindet, warne den Spieler
