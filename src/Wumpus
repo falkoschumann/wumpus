@@ -1,14 +1,40 @@
 #!/usr/bin/java --source 17
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.random.RandomGenerator;
-import java.util.stream.IntStream;
+import java.util.stream.Collectors;
 
 public class Wumpus {
+  private final Game game = new Game();
+
   public static void main(String[] args) {
-    var game = new Game();
+    var wumpus = new Wumpus();
+    wumpus.startGame();
+    wumpus.describeRoom();
+  }
+
+  private void startGame(){
     game.startGame();
+    System.out.println("Hunt the wumpus");
+    System.out.println();
+  }
+
+  private void describeRoom() {
+    var room = game.describeRoom();
+    System.out.println("You are in room " + room.number());
+    var tunnels = room.tunnelsLeadTo().stream()
+      .map(String::valueOf)
+      .collect(Collectors.joining(", "));
+    System.out.println("Tunnels lead to " + tunnels);
+    for (var e : room.warnings()) {
+      switch (e) {
+        case WUMPUS -> System.out.println("I smell a wumpus!");
+        case BOTTOMLESS_PIT -> System.out.println("I feel a draft");
+        case SUPER_BAT -> System.out.println("Bats nearby!");
+      }
+    }
   }
 }
 
@@ -52,7 +78,6 @@ class Game {
       positionWumpus();
       positionBottomlessPits();
       positionSuperBats();
-      System.out.println("Items: " + IntStream.of(items).boxed().toList());
     } while (checkForCrossovers());
   }
 
@@ -80,9 +105,7 @@ class Game {
         if (i == j) {
           continue;
         }
-
         if (items[i] == items[j]) {
-          System.out.println("Crossover detected: " + items[i]);
           return true;
         }
       }
@@ -99,16 +122,42 @@ class Game {
   void shootCrookedArrow() {}
 
   RoomDescription describeRoom() {
-    return null;
+    var number = playersRoom();
+    var tunnelsLeadTo = reachableRoomsFrom(number);
+    var warnings = exploreRooms(tunnelsLeadTo);
+    return new RoomDescription(number, tunnelsLeadTo, warnings);
+  }
+
+  private Set<Warning> exploreRooms(Set<Integer> tunnelsLeadTo) {
+    var warnings = new LinkedHashSet<Warning>();
+    if (tunnelsLeadTo.contains(items[WUMPUS])) {
+      warnings.add(Warning.WUMPUS);
+    }
+    if (tunnelsLeadTo.contains(items[BOTTOMLESS_PIT_1])
+        || tunnelsLeadTo.contains(items[BOTTOMLESS_PIT_2])) {
+      warnings.add(Warning.BOTTOMLESS_PIT);
+    }
+    if (tunnelsLeadTo.contains(items[SUPER_BAT_1]) || tunnelsLeadTo.contains(items[SUPER_BAT_2])) {
+      warnings.add(Warning.SUPER_BAT);
+    }
+    return Set.copyOf(warnings);
+  }
+
+  private Set<Integer> reachableRoomsFrom(int number) {
+    return cave.get(number - 1);
+  }
+
+  private int playersRoom() {
+    return items[PLAYER];
   }
 
   private record Room(int number, Set<Integer> tunnelsLeadTo) {}
 }
 
-record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warning) {}
+record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warnings) {}
 
 enum Warning {
+  WUMPUS,
   BOTTOMLESS_PIT,
   SUPER_BAT,
-  WUMPUS
 }
