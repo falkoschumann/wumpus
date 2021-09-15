@@ -1,7 +1,9 @@
 #!/usr/bin/java --source 17
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
@@ -16,18 +18,31 @@ public class Wumpus {
   }
 
   private void startGame(){
-    game.startGame();
     System.out.println("Hunt the wumpus");
     System.out.println();
+    game.start();
   }
 
   private void describeRoom() {
+    RoomDescription room = printCurrentRoom();
+    printTunnelsFor(room);
+    printWarningsFor(room);
+  }
+
+  private RoomDescription printCurrentRoom() {
     var room = game.describeRoom();
     System.out.println("You are in room " + room.number());
+    return room;
+  }
+
+  private void printTunnelsFor(RoomDescription room) {
     var tunnels = room.tunnelsLeadTo().stream()
       .map(String::valueOf)
       .collect(Collectors.joining(", "));
     System.out.println("Tunnels lead to " + tunnels);
+  }
+
+  private void printWarningsFor(RoomDescription room) {
     for (var e : room.warnings()) {
       switch (e) {
         case WUMPUS -> System.out.println("I smell a wumpus!");
@@ -39,6 +54,10 @@ public class Wumpus {
 }
 
 class Game {
+  // Cave:
+  // - List of rooms
+  // - List index matches room number - 1
+  // - Each room defines its adjacent rooms
   private final List<Set<Integer>> cave = List.of(
     Set.of(2, 5, 8),
     Set.of(1, 3, 10),
@@ -62,17 +81,20 @@ class Game {
     Set.of(13, 16, 19)
   );
 
-  private static final int PLAYER = 0;
-  private static final int WUMPUS = 1;
-  private static final int BOTTOMLESS_PIT_1 = 2;
-  private static final int BOTTOMLESS_PIT_2 = 3;
-  private static final int SUPER_BAT_1 = 4;
-  private static final int SUPER_BAT_2 = 5;
-  private final int[] items = new int[6];
+  // Items: Maps a game item to a room
+  private enum Item {
+    PLAYER,
+    WUMPUS,
+    BOTTOMLESS_PIT_1,
+    BOTTOMLESS_PIT_2,
+    SUPER_BAT_1,
+    SUPER_BAT_2,
+  }
+  private final Map<Item, Integer> items = new LinkedHashMap<>();
 
   private final RandomGenerator randomGenerator = RandomGenerator.of("Xoroshiro128PlusPlus");
 
-  void startGame() {
+  void start() {
     do {
       positionPlayer();
       positionWumpus();
@@ -82,30 +104,30 @@ class Game {
   }
 
   private void positionPlayer() {
-    items[PLAYER] = randomRoom();
+    items.put(Item.PLAYER, randomRoom());
   }
 
   private void positionWumpus() {
-    items[WUMPUS] = randomRoom();
+    items.put(Item.WUMPUS, randomRoom());
   }
 
   private void positionBottomlessPits() {
-    items[BOTTOMLESS_PIT_1] = randomRoom();
-    items[BOTTOMLESS_PIT_2] = randomRoom();
+    items.put(Item.BOTTOMLESS_PIT_1, randomRoom());
+    items.put(Item.BOTTOMLESS_PIT_2, randomRoom());
   }
 
   private void positionSuperBats() {
-    items[SUPER_BAT_1] = randomRoom();
-    items[SUPER_BAT_2] = randomRoom();
+    items.put(Item.SUPER_BAT_1, randomRoom());
+    items.put(Item.SUPER_BAT_2, randomRoom());
   }
 
   private boolean checkForCrossovers() {
-    for (var i = 0; i < items.length; i++) {
-      for (var j = 0; j < items.length; j++) {
-        if (i == j) {
+    for (var e1 : items.entrySet()) {
+      for (var e2 : items.entrySet()) {
+        if (e1.getKey() == e2.getKey()) {
           continue;
         }
-        if (items[i] == items[j]) {
+        if (e1.getValue().equals(e2.getValue())) {
           return true;
         }
       }
@@ -117,41 +139,36 @@ class Game {
     return randomGenerator.nextInt(1, 21);
   }
 
-  void movePlayer() {}
+  void movePlayerTo(int room) {}
 
   void shootCrookedArrow() {}
 
   RoomDescription describeRoom() {
-    var number = playersRoom();
+    var number = items.get(Item.PLAYER);
     var tunnelsLeadTo = reachableRoomsFrom(number);
     var warnings = exploreRooms(tunnelsLeadTo);
     return new RoomDescription(number, tunnelsLeadTo, warnings);
   }
 
-  private Set<Warning> exploreRooms(Set<Integer> tunnelsLeadTo) {
+  private Set<Integer> reachableRoomsFrom(int roomNumber) {
+    return cave.get(roomNumber - 1);
+  }
+
+  private Set<Warning> exploreRooms(Set<Integer> numbers) {
     var warnings = new LinkedHashSet<Warning>();
-    if (tunnelsLeadTo.contains(items[WUMPUS])) {
+    if (numbers.contains(items.get(Item.WUMPUS))) {
       warnings.add(Warning.WUMPUS);
     }
-    if (tunnelsLeadTo.contains(items[BOTTOMLESS_PIT_1])
-        || tunnelsLeadTo.contains(items[BOTTOMLESS_PIT_2])) {
+    if (numbers.contains(items.get(Item.BOTTOMLESS_PIT_1))
+        || numbers.contains(items.get(Item.BOTTOMLESS_PIT_2))) {
       warnings.add(Warning.BOTTOMLESS_PIT);
     }
-    if (tunnelsLeadTo.contains(items[SUPER_BAT_1]) || tunnelsLeadTo.contains(items[SUPER_BAT_2])) {
+    if (numbers.contains(items.get(Item.SUPER_BAT_1))
+        || numbers.contains(items.get(Item.SUPER_BAT_2))) {
       warnings.add(Warning.SUPER_BAT);
     }
     return Set.copyOf(warnings);
   }
-
-  private Set<Integer> reachableRoomsFrom(int number) {
-    return cave.get(number - 1);
-  }
-
-  private int playersRoom() {
-    return items[PLAYER];
-  }
-
-  private record Room(int number, Set<Integer> tunnelsLeadTo) {}
 }
 
 record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warnings) {}
