@@ -1,0 +1,114 @@
+#!/usr/bin/java --source 17
+
+import java.util.List;
+import java.util.Set;
+import java.util.random.RandomGenerator;
+import java.util.stream.IntStream;
+
+public class Wumpus {
+  public static void main(String[] args) {
+    var game = new Game();
+    game.startGame();
+  }
+}
+
+class Game {
+  private final List<Set<Integer>> cave = List.of(
+    Set.of(2, 5, 8),
+    Set.of(1, 3, 10),
+    Set.of(2, 4, 12),
+    Set.of(3, 5, 14),
+    Set.of(1, 4, 6),
+    Set.of(5, 7, 15),
+    Set.of(6, 8, 17),
+    Set.of(1, 7, 9),
+    Set.of(8, 10, 18),
+    Set.of(2, 9, 11),
+    Set.of(10, 12, 19),
+    Set.of(3, 11, 13),
+    Set.of(12, 14, 20),
+    Set.of(4, 13, 15),
+    Set.of(6, 14, 16),
+    Set.of(15, 17, 20),
+    Set.of(7, 16, 18),
+    Set.of(9, 17, 19),
+    Set.of(11, 18, 20),
+    Set.of(13, 16, 19)
+  );
+
+  private static final int PLAYER = 0;
+  private static final int WUMPUS = 1;
+  private static final int BOTTOMLESS_PIT_1 = 2;
+  private static final int BOTTOMLESS_PIT_2 = 3;
+  private static final int SUPER_BAT_1 = 4;
+  private static final int SUPER_BAT_2 = 5;
+  private final int[] items = new int[6];
+
+  private final RandomGenerator randomGenerator = RandomGenerator.of("Xoroshiro128PlusPlus");
+
+  void startGame() {
+    do {
+      positionPlayer();
+      positionWumpus();
+      positionBottomlessPits();
+      positionSuperBats();
+      System.out.println("Items: " + IntStream.of(items).boxed().toList());
+    } while (checkForCrossovers());
+  }
+
+  private void positionPlayer() {
+    items[PLAYER] = randomRoom();
+  }
+
+  private void positionWumpus() {
+    items[WUMPUS] = randomRoom();
+  }
+
+  private void positionBottomlessPits() {
+    items[BOTTOMLESS_PIT_1] = randomRoom();
+    items[BOTTOMLESS_PIT_2] = randomRoom();
+  }
+
+  private void positionSuperBats() {
+    items[SUPER_BAT_1] = randomRoom();
+    items[SUPER_BAT_2] = randomRoom();
+  }
+
+  private boolean checkForCrossovers() {
+    for (var i = 0; i < items.length; i++) {
+      for (var j = 0; j < items.length; j++) {
+        if (i == j) {
+          continue;
+        }
+
+        if (items[i] == items[j]) {
+          System.out.println("Crossover detected: " + items[i]);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private int randomRoom() {
+    return randomGenerator.nextInt(1, 21);
+  }
+
+  void movePlayer() {}
+
+  void shootCrookedArrow() {}
+
+  RoomDescription describeRoom() {
+    return null;
+  }
+
+  private record Room(int number, Set<Integer> tunnelsLeadTo) {}
+}
+
+record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warning) {}
+
+enum Warning {
+  BOTTOMLESS_PIT,
+  SUPER_BAT,
+  WUMPUS
+}
