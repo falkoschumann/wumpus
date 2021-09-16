@@ -1,5 +1,9 @@
 #!/usr/bin/java --source 17
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -10,11 +14,16 @@ import java.util.stream.Collectors;
 
 public class Wumpus {
   private final Game game = new Game();
+  private RoomDescription room;
 
   public static void main(String[] args) {
     var wumpus = new Wumpus();
     wumpus.startGame();
     wumpus.describeRoom();
+    while (true) {
+      wumpus.movePlayer();
+      wumpus.describeRoom();
+    }
   }
 
   private void startGame(){
@@ -24,31 +33,51 @@ public class Wumpus {
   }
 
   private void describeRoom() {
-    RoomDescription room = printCurrentRoom();
-    printTunnelsFor(room);
-    printWarningsFor(room);
+    room = game.describeRoom();
+    printCurrentRoom();
+    printTunnelsFor();
+    printWarningsFor();
   }
 
-  private RoomDescription printCurrentRoom() {
-    var room = game.describeRoom();
+  private void printCurrentRoom() {
     System.out.println("You are in room " + room.number());
-    return room;
   }
 
-  private void printTunnelsFor(RoomDescription room) {
+  private void printTunnelsFor() {
     var tunnels = room.tunnelsLeadTo().stream()
       .map(String::valueOf)
       .collect(Collectors.joining(", "));
     System.out.println("Tunnels lead to " + tunnels);
   }
 
-  private void printWarningsFor(RoomDescription room) {
+  private void printWarningsFor() {
     for (var e : room.warnings()) {
       switch (e) {
         case WUMPUS -> System.out.println("I smell a wumpus!");
         case BOTTOMLESS_PIT -> System.out.println("I feel a draft");
         case SUPER_BAT -> System.out.println("Bats nearby!");
       }
+    }
+  }
+
+  private void movePlayer() {
+    System.out.println("Where to");
+    try {
+      var reader = new BufferedReader(new InputStreamReader(System.in));
+      while (true) {
+        var s = reader.readLine();
+        try {
+          var i = Integer.parseInt(s);
+          if (room.tunnelsLeadTo().contains(i)) {
+            game.movePlayerTo(i);
+            break;
+          }
+        } catch (NumberFormatException ignored) {
+        }
+        System.out.println("Not possible");
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 }
@@ -139,7 +168,21 @@ class Game {
     return randomGenerator.nextInt(1, 21);
   }
 
-  void movePlayerTo(int room) {}
+  void movePlayerTo(int room) {
+    room = checkForSuperBats(room);
+    items.put(Item.PLAYER, room);
+  }
+
+  private int checkForSuperBats(int room) {
+    if (room == items.get(Item.SUPER_BAT_1) || room == items.get(Item.SUPER_BAT_2)) {
+      var i = room;
+      do {
+        i = randomRoom();
+      } while (i == room);
+      room = i;
+    }
+    return room;
+  }
 
   void shootCrookedArrow() {}
 
@@ -169,6 +212,10 @@ class Game {
     }
     return Set.copyOf(warnings);
   }
+
+  GameState determineState() {
+    return null;
+  }
 }
 
 record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warnings) {}
@@ -178,3 +225,5 @@ enum Warning {
   BOTTOMLESS_PIT,
   SUPER_BAT,
 }
+
+record GameState() {}

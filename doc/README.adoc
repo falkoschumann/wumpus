@@ -14,6 +14,7 @@
 === Bewege Spieler
 
 * Bewege Spieler in einen der angrenzenden Räume
+* Wenn der Spieler einen Raum mit einer Superfledermaus betritt, wird er in einen zufälligen anderen Raum versetzt
 
 === Schieße krummen Pfeil
 
@@ -32,8 +33,8 @@
 
 === Bestimme Spielzustand
 
-* Wenn der Spieler den Raum mit dem Wumpus betreten hat, verliert er
-* Wenn der Spieler einen Raum mit einem bodenlosen Loch betreten hat, verliert er
-* Wenn der Spieler einen Raum mit einer Superfledermaus betreten hat, wird er in einen zufälligen anderen Raum versetzt
-* Wenn der krumme Pfeil den Wumpus getroffen hat, gewinnt der Spieler
-* Wenn der Spieler seine 5 Pfeile verschossen hat, ohne zu treffen, verliert er
+* Wenn der Spieler den Raum mit dem Wumpus betreten hat, hat er verloren
+* Wenn der Spieler einen Raum mit einem bodenlosen Loch betreten hat, hat er verloren
+* Wenn der Spieler einen Raum mit einer Superfledermaus betreten hat, wurde er in einen zufälligen anderen Raum versetzt
+* Wenn der krumme Pfeil den Wumpus getroffen hat, hat der Spieler gewonnen
+* Wenn der Spieler seine 5 Pfeile verschossen hat, ohne zu treffen, hat er verloren
