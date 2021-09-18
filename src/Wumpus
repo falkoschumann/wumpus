@@ -34,28 +34,28 @@ public class Wumpus {
 
   private void describeRoom() {
     room = game.describeRoom();
-    printCurrentRoom();
-    printTunnelsFor();
-    printWarningsFor();
+    printRoom();
+    printTunnels();
+    printWarnings();
   }
 
-  private void printCurrentRoom() {
+  private void printRoom() {
     System.out.println("You are in room " + room.number());
   }
 
-  private void printTunnelsFor() {
+  private void printTunnels() {
     var tunnels = room.tunnelsLeadTo().stream()
       .map(String::valueOf)
       .collect(Collectors.joining(", "));
     System.out.println("Tunnels lead to " + tunnels);
   }
 
-  private void printWarningsFor() {
+  private void printWarnings() {
     for (var e : room.warnings()) {
       switch (e) {
         case WUMPUS -> System.out.println("I smell a wumpus!");
-        case BOTTOMLESS_PIT -> System.out.println("I feel a draft");
-        case SUPER_BAT -> System.out.println("Bats nearby!");
+        case PIT -> System.out.println("I feel a draft");
+        case BAT -> System.out.println("Bats nearby!");
       }
     }
   }
@@ -114,10 +114,10 @@ class Game {
   private enum Item {
     PLAYER,
     WUMPUS,
-    BOTTOMLESS_PIT_1,
-    BOTTOMLESS_PIT_2,
-    SUPER_BAT_1,
-    SUPER_BAT_2,
+    PIT_1,
+    PIT_2,
+    BAT_1,
+    BAT_2,
   }
   private final Map<Item, Integer> items = new LinkedHashMap<>();
 
@@ -127,8 +127,8 @@ class Game {
     do {
       positionPlayer();
       positionWumpus();
-      positionBottomlessPits();
-      positionSuperBats();
+      positionPits();
+      positionBats();
     } while (checkForCrossovers());
   }
 
@@ -140,14 +140,14 @@ class Game {
     items.put(Item.WUMPUS, randomRoom());
   }
 
-  private void positionBottomlessPits() {
-    items.put(Item.BOTTOMLESS_PIT_1, randomRoom());
-    items.put(Item.BOTTOMLESS_PIT_2, randomRoom());
+  private void positionPits() {
+    items.put(Item.PIT_1, randomRoom());
+    items.put(Item.PIT_2, randomRoom());
   }
 
-  private void positionSuperBats() {
-    items.put(Item.SUPER_BAT_1, randomRoom());
-    items.put(Item.SUPER_BAT_2, randomRoom());
+  private void positionBats() {
+    items.put(Item.BAT_1, randomRoom());
+    items.put(Item.BAT_2, randomRoom());
   }
 
   private boolean checkForCrossovers() {
@@ -169,12 +169,12 @@ class Game {
   }
 
   void movePlayerTo(int room) {
-    room = checkForSuperBats(room);
+    room = checkForBats(room);
     items.put(Item.PLAYER, room);
   }
 
-  private int checkForSuperBats(int room) {
-    if (room == items.get(Item.SUPER_BAT_1) || room == items.get(Item.SUPER_BAT_2)) {
+  private int checkForBats(int room) {
+    if (room == items.get(Item.BAT_1) || room == items.get(Item.BAT_2)) {
       var i = room;
       do {
         i = randomRoom();
@@ -202,18 +202,18 @@ class Game {
     if (numbers.contains(items.get(Item.WUMPUS))) {
       warnings.add(Warning.WUMPUS);
     }
-    if (numbers.contains(items.get(Item.BOTTOMLESS_PIT_1))
-        || numbers.contains(items.get(Item.BOTTOMLESS_PIT_2))) {
-      warnings.add(Warning.BOTTOMLESS_PIT);
+    if (numbers.contains(items.get(Item.PIT_1))
+        || numbers.contains(items.get(Item.PIT_2))) {
+      warnings.add(Warning.PIT);
     }
-    if (numbers.contains(items.get(Item.SUPER_BAT_1))
-        || numbers.contains(items.get(Item.SUPER_BAT_2))) {
-      warnings.add(Warning.SUPER_BAT);
+    if (numbers.contains(items.get(Item.BAT_1))
+        || numbers.contains(items.get(Item.BAT_2))) {
+      warnings.add(Warning.BAT);
     }
     return Set.copyOf(warnings);
   }
 
-  GameState determineState() {
+  GameState determineGameState() {
     return null;
   }
 }
@@ -222,8 +222,8 @@ record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warn
 
 enum Warning {
   WUMPUS,
-  BOTTOMLESS_PIT,
-  SUPER_BAT,
+  PIT,
+  BAT,
 }
 
 record GameState() {}
