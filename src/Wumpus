@@ -6,9 +6,9 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 
@@ -83,44 +83,7 @@ public class Wumpus {
 }
 
 class Game {
-  // Cave:
-  // - List of rooms
-  // - List index matches room number - 1
-  // - Each room defines its adjacent rooms
-  private final List<Set<Integer>> cave = List.of(
-    Set.of(2, 5, 8),
-    Set.of(1, 3, 10),
-    Set.of(2, 4, 12),
-    Set.of(3, 5, 14),
-    Set.of(1, 4, 6),
-    Set.of(5, 7, 15),
-    Set.of(6, 8, 17),
-    Set.of(1, 7, 9),
-    Set.of(8, 10, 18),
-    Set.of(2, 9, 11),
-    Set.of(10, 12, 19),
-    Set.of(3, 11, 13),
-    Set.of(12, 14, 20),
-    Set.of(4, 13, 15),
-    Set.of(6, 14, 16),
-    Set.of(15, 17, 20),
-    Set.of(7, 16, 18),
-    Set.of(9, 17, 19),
-    Set.of(11, 18, 20),
-    Set.of(13, 16, 19)
-  );
-
-  // Items: Maps a game item to a room
-  private enum Item {
-    PLAYER,
-    WUMPUS,
-    PIT_1,
-    PIT_2,
-    BAT_1,
-    BAT_2,
-  }
-  private final Map<Item, Integer> items = new LinkedHashMap<>();
-
+  private final Cave cave = new Cave();
   private final RandomGenerator randomGenerator = RandomGenerator.of("Xoroshiro128PlusPlus");
 
   void start() {
@@ -129,30 +92,30 @@ class Game {
       positionWumpus();
       positionPits();
       positionBats();
-    } while (checkForCrossovers());
+    } while (hasCrossovers());
   }
 
   private void positionPlayer() {
-    items.put(Item.PLAYER, randomRoom());
+    cave.itemRooms.put(Item.PLAYER, randomRoom());
   }
 
   private void positionWumpus() {
-    items.put(Item.WUMPUS, randomRoom());
+    cave.itemRooms.put(Item.WUMPUS, randomRoom());
   }
 
   private void positionPits() {
-    items.put(Item.PIT_1, randomRoom());
-    items.put(Item.PIT_2, randomRoom());
+    cave.itemRooms.put(Item.PIT_1, randomRoom());
+    cave.itemRooms.put(Item.PIT_2, randomRoom());
   }
 
   private void positionBats() {
-    items.put(Item.BAT_1, randomRoom());
-    items.put(Item.BAT_2, randomRoom());
+    cave.itemRooms.put(Item.BAT_1, randomRoom());
+    cave.itemRooms.put(Item.BAT_2, randomRoom());
   }
 
-  private boolean checkForCrossovers() {
-    for (var e1 : items.entrySet()) {
-      for (var e2 : items.entrySet()) {
+  private boolean hasCrossovers() {
+    for (var e1 : cave.itemRooms.entrySet()) {
+      for (var e2 : cave.itemRooms.entrySet()) {
         if (e1.getKey() == e2.getKey()) {
           continue;
         }
@@ -170,11 +133,11 @@ class Game {
 
   void movePlayerTo(int room) {
     room = checkForBats(room);
-    items.put(Item.PLAYER, room);
+    cave.itemRooms.put(Item.PLAYER, room);
   }
 
   private int checkForBats(int room) {
-    if (room == items.get(Item.BAT_1) || room == items.get(Item.BAT_2)) {
+    if (room == cave.itemRooms.get(Item.BAT_1) || room == cave.itemRooms.get(Item.BAT_2)) {
       var i = room;
       do {
         i = randomRoom();
@@ -187,27 +150,31 @@ class Game {
   void shootCrookedArrow() {}
 
   RoomDescription describeRoom() {
-    var number = items.get(Item.PLAYER);
+    var number = currentRoom();
     var tunnelsLeadTo = reachableRoomsFrom(number);
     var warnings = exploreRooms(tunnelsLeadTo);
     return new RoomDescription(number, tunnelsLeadTo, warnings);
   }
 
+  private Integer currentRoom() {
+    return cave.itemRooms.get(Item.PLAYER);
+  }
+
   private Set<Integer> reachableRoomsFrom(int roomNumber) {
-    return cave.get(roomNumber - 1);
+    return cave.rooms.get(roomNumber).tunnelsLeadTo;
   }
 
   private Set<Warning> exploreRooms(Set<Integer> numbers) {
     var warnings = new LinkedHashSet<Warning>();
-    if (numbers.contains(items.get(Item.WUMPUS))) {
+    if (numbers.contains(cave.itemRooms.get(Item.WUMPUS))) {
       warnings.add(Warning.WUMPUS);
     }
-    if (numbers.contains(items.get(Item.PIT_1))
-        || numbers.contains(items.get(Item.PIT_2))) {
+    if (numbers.contains(cave.itemRooms.get(Item.PIT_1))
+        || numbers.contains(cave.itemRooms.get(Item.PIT_2))) {
       warnings.add(Warning.PIT);
     }
-    if (numbers.contains(items.get(Item.BAT_1))
-        || numbers.contains(items.get(Item.BAT_2))) {
+    if (numbers.contains(cave.itemRooms.get(Item.BAT_1))
+        || numbers.contains(cave.itemRooms.get(Item.BAT_2))) {
       warnings.add(Warning.BAT);
     }
     return Set.copyOf(warnings);
@@ -215,6 +182,55 @@ class Game {
 
   GameState determineGameState() {
     return null;
+  }
+
+  private static class Cave {
+    final Map<Integer, Room> rooms;
+    final Map<Item, Integer> itemRooms = new TreeMap<>();
+
+    Cave() {
+      var dodecahedron = new LinkedHashMap<Integer, Room>();
+      dodecahedron.put(1, new Room(1, Set.of(2, 5, 8)));
+      dodecahedron.put(2, new Room(2, Set.of(1, 3, 10)));
+      dodecahedron.put(3, new Room(3, Set.of(2, 4, 12)));
+      dodecahedron.put(4, new Room(4, Set.of(3, 5, 14)));
+      dodecahedron.put(5, new Room(5, Set.of(1, 4, 6)));
+      dodecahedron.put(6, new Room(6, Set.of(5, 7, 15)));
+      dodecahedron.put(7, new Room(7, Set.of(6, 8, 17)));
+      dodecahedron.put(8, new Room(8, Set.of(1, 7, 9)));
+      dodecahedron.put(9, new Room(9, Set.of(8, 10, 18)));
+      dodecahedron.put(10, new Room(10, Set.of(2, 9, 11)));
+      dodecahedron.put(11, new Room(11, Set.of(10, 12, 19)));
+      dodecahedron.put(12, new Room(12, Set.of(3, 11, 13)));
+      dodecahedron.put(13, new Room(13, Set.of(12, 14, 20)));
+      dodecahedron.put(14, new Room(14, Set.of(4, 13, 15)));
+      dodecahedron.put(15, new Room(15, Set.of(6, 14, 16)));
+      dodecahedron.put(16, new Room(16, Set.of(15, 17, 20)));
+      dodecahedron.put(17, new Room(17, Set.of(7, 16, 18)));
+      dodecahedron.put(18, new Room(18, Set.of(9, 17, 19)));
+      dodecahedron.put(19, new Room(19, Set.of(11, 18, 20)));
+      dodecahedron.put(20, new Room(20, Set.of(13, 16, 19)));
+      rooms = Map.copyOf(dodecahedron);
+    }
+  }
+
+  private static class Room {
+    final int number;
+    final Set<Integer> tunnelsLeadTo;
+
+    Room(int number, Set<Integer> tunnelsLeadTo) {
+      this.number = number;
+      this.tunnelsLeadTo = tunnelsLeadTo;
+    }
+  }
+
+  private enum Item {
+    PLAYER,
+    WUMPUS,
+    PIT_1,
+    PIT_2,
+    BAT_1,
+    BAT_2,
   }
 }
 
