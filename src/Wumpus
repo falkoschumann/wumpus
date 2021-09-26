@@ -1,59 +1,374 @@
 #!/usr/bin/java --source 17
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
+import java.util.Collection;
+import java.util.InputMismatchException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 
-public class Wumpus {
-  private final Game game;
-  private RoomDescription room;
+/* ****************************************************************************
+ * App
+ * ****************************************************************************/
 
-  public Wumpus(Game game) {
-    this.game = game;
-  }
-
+public class App {
   public static void main(String[] args) {
-    var game = new Game();
-    var wumpus = new Wumpus(game);
+    MessageHandler backend = new MessageHandler();
+    var frontend = new Wumpus(backend);
+    frontend.run();
+  }
+}
 
-    game.onEvent = wumpus::print;
+/* ****************************************************************************
+ * Contract
+ * ****************************************************************************/
 
-    wumpus.run();
+interface CommandStatus {}
+record Success() implements CommandStatus {}
+record Failure(String errorMessage) implements CommandStatus {}
+
+record StartGameCommand() {}
+
+record MovePlayerCommand(int room) {}
+
+record ShootCrookedArrowCommand() {}
+
+record ExploreRoomQuery() {}
+
+record ExploreRoomQueryResult(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warnings) {
+  enum Warning {
+    WUMPUS,
+    PIT,
+    BAT,
+  }
+}
+
+record DetermineGameStateQuery () {}
+
+record DetermineGameStateQueryResult(State state) {
+  enum State {
+    OPEN,
+    WON,
+    LOST,
+  }
+}
+
+enum GameNotification {
+  PLAYER_FELL_INTO_PIT,
+  PLAYER_SNATCHED_BY_BAT,
+  PLAYER_BUMPED_WUMPUS,
+  ARROW_MISSED,
+  ARROW_HIT_WUMPUS,
+  ARROW_HIT_PLAYER,
+  WUMPUS_ATE_PLAYERS,
+}
+
+/* ****************************************************************************
+ * Backend
+ * ****************************************************************************/
+
+class MessageHandler {
+  private enum Item {
+    PLAYER,
+    WUMPUS,
+    PIT_1,
+    PIT_2,
+    BAT_1,
+    BAT_2,
   }
 
-  private void run() {
+  Consumer<GameNotification> onEvent;
+
+  private final RandomGenerator random = RandomGenerator.of("Xoroshiro128PlusPlus");
+
+  private final Cave cave = new Cave();
+  private final Map<Item, Integer> itemRooms = new TreeMap<>();
+  private DetermineGameStateQueryResult.State state = DetermineGameStateQueryResult.State.OPEN;
+
+  CommandStatus handle(@SuppressWarnings("unused") StartGameCommand command) {
+    do {
+      positionPlayer();
+      positionWumpus();
+      positionPits();
+      positionBats();
+    } while (hasCrossovers());
+    return new Success();
+  }
+
+  private void positionPlayer() {
+    itemRooms.put(Item.PLAYER, randomRoom());
+  }
+
+  private void positionWumpus() {
+    itemRooms.put(Item.WUMPUS, randomRoom());
+  }
+
+  private void positionPits() {
+    itemRooms.put(Item.PIT_1, randomRoom());
+    itemRooms.put(Item.PIT_2, randomRoom());
+  }
+
+  private void positionBats() {
+    itemRooms.put(Item.BAT_1, randomRoom());
+    itemRooms.put(Item.BAT_2, randomRoom());
+  }
+
+  private boolean hasCrossovers() {
+    for (var e1 : itemRooms.entrySet()) {
+      for (var e2 : itemRooms.entrySet()) {
+        if (e1.getKey() == e2.getKey()) {
+          continue;
+        }
+        if (e1.getValue().equals(e2.getValue())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private int randomRoom() {
+    return random.nextInt(1, 21);
+  }
+
+  CommandStatus handle(MovePlayerCommand command) {
+    if (cave.containsWumpus(command.room())) {
+      onEvent.accept(GameNotification.PLAYER_BUMPED_WUMPUS);
+      var tunnel = random.nextInt(1, 5);
+      if (tunnel == 4) {
+        // TODO Wumpus stays sill
+      } else {
+        // TODO Wumpus move through tunnel
+      }
+      state = DetermineGameStateQueryResult.State.LOST;
+      return new Success();
+    }
+    if (cave.containsPit(command.room())) {
+      onEvent.accept(GameNotification.PLAYER_FELL_INTO_PIT);
+      state = DetermineGameStateQueryResult.State.LOST;
+      return new Success();
+    }
+    if (cave.containsBat(command.room())) {
+      onEvent.accept(GameNotification.PLAYER_SNATCHED_BY_BAT);
+      var i = command.room();
+      do {
+        i = randomRoom();
+      } while (i == command.room());
+      command = new MovePlayerCommand(i);
+      // TODO Check for new hazards
+    }
+    itemRooms.put(Item.PLAYER, command.room());
+    return new Success();
+  }
+
+  CommandStatus handle(ShootCrookedArrowCommand command) {
+    // TODO Implement method
+    return new Success();
+  }
+
+  ExploreRoomQueryResult handle(ExploreRoomQuery query) {
+    var room = currentRoom();
+    var warnings = checkRooms(room.tunnelsLeadTo);
+    return new ExploreRoomQueryResult(room.number, room.tunnelsLeadTo, warnings);
+  }
+
+  private Room currentRoom() {
+    return cave.playersRoom();
+  }
+
+  private Set<ExploreRoomQueryResult.Warning> checkRooms(Set<Integer> numbers) {
+    var warnings = new LinkedHashSet<ExploreRoomQueryResult.Warning>();
+    if (cave.containsWumpus(numbers)) {
+      warnings.add(ExploreRoomQueryResult.Warning.WUMPUS);
+    }
+    if (cave.containsPit(numbers)) {
+      warnings.add(ExploreRoomQueryResult.Warning.PIT);
+    }
+    if (cave.containsBat(numbers)) {
+      warnings.add(ExploreRoomQueryResult.Warning.BAT);
+    }
+    return Set.copyOf(warnings);
+  }
+
+  DetermineGameStateQueryResult handle(DetermineGameStateQuery query) {
+    return new DetermineGameStateQueryResult(state);
+  }
+}
+
+class Cave {
+  private final Map<Integer, Room> rooms;
+
+  Cave() {
+    var dodecahedron = new LinkedHashMap<Integer, Room>();
+    dodecahedron.put(1, new Room(1, Set.of(2, 5, 8)));
+    dodecahedron.put(2, new Room(2, Set.of(1, 3, 10)));
+    dodecahedron.put(3, new Room(3, Set.of(2, 4, 12)));
+    dodecahedron.put(4, new Room(4, Set.of(3, 5, 14)));
+    dodecahedron.put(5, new Room(5, Set.of(1, 4, 6)));
+    dodecahedron.put(6, new Room(6, Set.of(5, 7, 15)));
+    dodecahedron.put(7, new Room(7, Set.of(6, 8, 17)));
+    dodecahedron.put(8, new Room(8, Set.of(1, 7, 9)));
+    dodecahedron.put(9, new Room(9, Set.of(8, 10, 18)));
+    dodecahedron.put(10, new Room(10, Set.of(2, 9, 11)));
+    dodecahedron.put(11, new Room(11, Set.of(10, 12, 19)));
+    dodecahedron.put(12, new Room(12, Set.of(3, 11, 13)));
+    dodecahedron.put(13, new Room(13, Set.of(12, 14, 20)));
+    dodecahedron.put(14, new Room(14, Set.of(4, 13, 15)));
+    dodecahedron.put(15, new Room(15, Set.of(6, 14, 16)));
+    dodecahedron.put(16, new Room(16, Set.of(15, 17, 20)));
+    dodecahedron.put(17, new Room(17, Set.of(7, 16, 18)));
+    dodecahedron.put(18, new Room(18, Set.of(9, 17, 19)));
+    dodecahedron.put(19, new Room(19, Set.of(11, 18, 20)));
+    dodecahedron.put(20, new Room(20, Set.of(13, 16, 19)));
+    rooms = Map.copyOf(dodecahedron);
+  }
+
+  int player() {
+    var number = itemRooms.get(Item.PLAYER);
+    return rooms.get(number).number;
+  }
+
+  void positionPlayer(int room) {
+    itemRooms.put(Item.PLAYER, room);
+  }
+
+  boolean containsWumpus(int room) {
+    return containsWumpus(Set.of(room));
+  }
+
+  void positionWumpus(int room) {
+    itemRooms.put(Item.WUMPUS, room);
+  }
+
+  boolean containsWumpus(Collection<Integer> rooms) {
+    return rooms.contains(itemRooms.get(Item.WUMPUS));
+  }
+
+  boolean containsPit(int room) {
+    return containsPit(Set.of(room));
+  }
+
+  boolean containsPit(Collection<Integer> rooms) {
+    return rooms.contains(itemRooms.get(Item.PIT_1)) || rooms.contains(itemRooms.get(Item.PIT_2));
+  }
+
+  boolean containsBat(int room) {
+    return containsBat(Set.of(room));
+  }
+
+  boolean containsBat(Collection<Integer> rooms) {
+    return rooms.contains(itemRooms.get(Item.BAT_1)) || rooms.contains(itemRooms.get(Item.BAT_2));
+  }
+
+  private static class Room {
+    final int number;
+    final Set<Integer> tunnelsLeadTo;
+
+    Room(int number, Set<Integer> tunnelsLeadTo) {
+      this.number = number;
+      this.tunnelsLeadTo = tunnelsLeadTo;
+    }
+  }
+}
+
+/* ****************************************************************************
+ * Frontend
+ * ****************************************************************************/
+
+class Wumpus {
+  private final Scanner input = new Scanner(System.in);
+  private final MessageHandler messageHandler;
+  private ExploreRoomQueryResult room;
+
+  Wumpus(MessageHandler messageHandler) {
+    this.messageHandler = messageHandler;
+    messageHandler.onEvent = this::print;
+  }
+
+  void run() {
+    showInstructions();
     startGame();
-    describeRoom();
     while (gameIsOpen()) {
+      exploreRoom();
       movePlayer();
-      describeRoom();
     }
   }
 
-  private void startGame(){
-    System.out.println("Hunt the wumpus");
-    System.out.println();
-    game.start();
+  private void showInstructions() {
+    System.out.print("Instructions (y/n) ");
+    var s = (String) input.next();
+    if (!Objects.equals(s, "y")) {
+      System.out.println();
+      return;
+    }
+
+    System.out.println("""
+      Welcome to 'Hunt the Wumpus'
+
+        The wumpus lives in a cave of 20 rooms. each room has 3 tunnels leading
+      to other rooms. (Look at a dodecahedron to see how this works-if you don't
+      know what a dodecahedron is, ask someone)
+
+      Hazards:
+
+      Bottomless pits - two rooms have bottomless pits in them if you go there,
+          you fall into the pit (& lose!)
+      Super bats - two other rooms have super bats. If you go there, a bat
+          grabs you and takes you to some other room at random. (Which might be
+          troublesome)
+
+      Wumpus:
+
+        The wumpus is not bothered by the hazards (he has sucker feet and is too
+      big for a bat to lift). Usually he is asleep. Two things wake him up: your
+      entering his room or your shooting an arrow.
+        If the wumpus wakes, he moves (p=0.75) one room or stays still (p=0.25).
+      After that, if he is where you are, he eats you up (& you lose!)
+
+      You:
+
+        Each turn you may move or shoot a crooked arrow
+      moving: you can go one room (thru one tunnel)
+      arrows: you have 5 arrows. you lose when you run out. Each arrow can go
+          from 1 to 5 rooms. You aim by telling the computer the room#s you want
+          the arrow to go to.
+          If the arrow can't go that way (ie no tunnel) it moves at random to
+          the next room.
+          If the arrow hits the wumpus, you win.
+          If the arrow hits you, you lose.
+
+      Warnings:
+
+        When you are one room away from wumpus or hazard, the computer says:
+      Wumpus - 'I smell a wumpus'
+      Bat    - 'Bats nearby'
+      Pit    - 'I feel a draft'
+      """);
   }
 
-  private void describeRoom() {
-    room = game.exploreRoom();
-    printRoom();
-    printTunnels();
-    printWarnings();
+  private void startGame() {
+    System.out.println("Hunt the Wumpus");
+    System.out.println();
+    messageHandler.handle(new StartGameCommand());
   }
 
   private boolean gameIsOpen() {
-    return game.determineState() == GameState.OPEN;
+    var result = messageHandler.handle(new DetermineGameStateQuery());
+    return result.state() == DetermineGameStateQueryResult.State.OPEN;
+  }
+
+  private void exploreRoom() {
+    room = messageHandler.handle(new ExploreRoomQuery());
+    printRoom();
+    printTunnels();
+    printWarnings();
+    System.out.println();
   }
 
   private void printRoom() {
@@ -70,7 +385,7 @@ public class Wumpus {
   private void printWarnings() {
     for (var e : room.warnings()) {
       switch (e) {
-        case WUMPUS -> System.out.println("I smell a wumpus!");
+        case WUMPUS -> System.out.println("I smell a Wumpus!");
         case PIT -> System.out.println("I feel a draft");
         case BAT -> System.out.println("Bats nearby!");
       }
@@ -78,214 +393,32 @@ public class Wumpus {
   }
 
   private void movePlayer() {
-    System.out.println("Where to");
-    try {
-      var reader = new BufferedReader(new InputStreamReader(System.in));
-      while (true) {
-        var s = reader.readLine();
-        try {
-          var i = Integer.parseInt(s);
-          if (room.tunnelsLeadTo().contains(i)) {
-            game.movePlayerTo(i);
-            break;
-          }
-        } catch (NumberFormatException ignored) {
+    while (true) {
+      try {
+        System.out.print("Where to ");
+        var i = input.nextInt();
+        if (room.tunnelsLeadTo().contains(i)) {
+          messageHandler.handle(new MovePlayerCommand(i));
+          break;
         }
-        System.out.println("Not possible");
+      } catch (InputMismatchException e) {
+        input.next();
       }
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
+      System.out.println("Not possible");
     }
+    System.out.println();
   }
 
-  private void print(GameEvent event) {
+  private void print(GameNotification event) {
     switch (event) {
-      case PLAYER_FELL_INTO_PIT -> System.out.println("YYYIIIIEEEE . . . FELL IN PIT");
-      case PLAYER_SNATCHED_BY_BAT -> System.out.println("ZAP--SUPER BAT SNATCH! ELSEWHEREVILLE FOR YOU!");
-      case PLAYER_BUMPED_WUMPUS -> System.out.println("...OOPS! BUMPED A WUMPUS!");
-      case ARROW_MISSED -> System.out.println("MISSED");
-      case ARROW_HIT_WUMPUS -> System.out.println("AHA! YOU GOT THE WUMPUS!");
-      case ARROW_HIT_PLAYER -> System.out.println("OUCH! ARROW GOT YOU!");
-      case WUMPUS_ATE_PLAYERS -> System.out.println("TSK TSK TSK- WUMPUS GOT YOU!");
+      case PLAYER_FELL_INTO_PIT -> System.out.println("YYYIIIIEEEE ... fell in pit");
+      case PLAYER_SNATCHED_BY_BAT ->
+        System.out.println("ZAP - Super bat snatch! Elsewhereville for you!");
+      case PLAYER_BUMPED_WUMPUS -> System.out.println("...OOPS! Bumped a Wumpus!");
+      case ARROW_MISSED -> System.out.println("Missed");
+      case ARROW_HIT_WUMPUS -> System.out.println("AHA! You got the Wumpus!");
+      case ARROW_HIT_PLAYER -> System.out.println("OUCH! Arrow got you!");
+      case WUMPUS_ATE_PLAYERS -> System.out.println("TSK TSK TSK - Wumpus got you!");
     }
   }
-}
-
-class Game {
-  Consumer<GameEvent> onEvent;
-
-  private final RandomGenerator random = RandomGenerator.of("Xoroshiro128PlusPlus");
-  private final Cave cave = new Cave();
-  private GameState state = GameState.OPEN;
-
-  void start() {
-    do {
-      positionPlayer();
-      positionWumpus();
-      positionPits();
-      positionBats();
-    } while (hasCrossovers());
-  }
-
-  private void positionPlayer() {
-    cave.itemRooms.put(Item.PLAYER, randomRoom());
-  }
-
-  private void positionWumpus() {
-    cave.itemRooms.put(Item.WUMPUS, randomRoom());
-  }
-
-  private void positionPits() {
-    cave.itemRooms.put(Item.PIT_1, randomRoom());
-    cave.itemRooms.put(Item.PIT_2, randomRoom());
-  }
-
-  private void positionBats() {
-    cave.itemRooms.put(Item.BAT_1, randomRoom());
-    cave.itemRooms.put(Item.BAT_2, randomRoom());
-  }
-
-  private boolean hasCrossovers() {
-    for (var e1 : cave.itemRooms.entrySet()) {
-      for (var e2 : cave.itemRooms.entrySet()) {
-        if (e1.getKey() == e2.getKey()) {
-          continue;
-        }
-        if (e1.getValue().equals(e2.getValue())) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  private int randomRoom() {
-    return random.nextInt(1, 21);
-  }
-
-  RoomDescription exploreRoom() {
-    var number = currentRoom();
-    var tunnelsLeadTo = reachableRoomsFrom(number);
-    var warnings = exploreRooms(tunnelsLeadTo);
-    return new RoomDescription(number, tunnelsLeadTo, warnings);
-  }
-
-  private Integer currentRoom() {
-    return cave.itemRooms.get(Item.PLAYER);
-  }
-
-  private Set<Integer> reachableRoomsFrom(int number) {
-    return cave.rooms.get(number).tunnelsLeadTo;
-  }
-
-  private Set<RoomDescription.Warning> exploreRooms(Set<Integer> numbers) {
-    var warnings = new LinkedHashSet<RoomDescription.Warning>();
-    if (numbers.contains(cave.itemRooms.get(Item.WUMPUS))) {
-      warnings.add(RoomDescription.Warning.WUMPUS);
-    }
-    if (numbers.contains(cave.itemRooms.get(Item.PIT_1))
-      || numbers.contains(cave.itemRooms.get(Item.PIT_2))) {
-      warnings.add(RoomDescription.Warning.PIT);
-    }
-    if (numbers.contains(cave.itemRooms.get(Item.BAT_1))
-      || numbers.contains(cave.itemRooms.get(Item.BAT_2))) {
-      warnings.add(RoomDescription.Warning.BAT);
-    }
-    return Set.copyOf(warnings);
-  }
-
-  void movePlayerTo(int room) {
-    room = checkForBats(room);
-    cave.itemRooms.put(Item.PLAYER, room);
-  }
-
-  private int checkForBats(int room) {
-    if (room == cave.itemRooms.get(Item.BAT_1) || room == cave.itemRooms.get(Item.BAT_2)) {
-      var i = room;
-      do {
-        i = randomRoom();
-      } while (i == room);
-      room = i;
-    }
-    return room;
-  }
-
-  void shootCrookedArrow() {}
-
-  GameState determineState() {
-    return state;
-  }
-
-  private static class Cave {
-    final Map<Integer, Room> rooms;
-    final Map<Item, Integer> itemRooms = new TreeMap<>();
-
-    Cave() {
-      var dodecahedron = new LinkedHashMap<Integer, Room>();
-      dodecahedron.put(1, new Room(1, Set.of(2, 5, 8)));
-      dodecahedron.put(2, new Room(2, Set.of(1, 3, 10)));
-      dodecahedron.put(3, new Room(3, Set.of(2, 4, 12)));
-      dodecahedron.put(4, new Room(4, Set.of(3, 5, 14)));
-      dodecahedron.put(5, new Room(5, Set.of(1, 4, 6)));
-      dodecahedron.put(6, new Room(6, Set.of(5, 7, 15)));
-      dodecahedron.put(7, new Room(7, Set.of(6, 8, 17)));
-      dodecahedron.put(8, new Room(8, Set.of(1, 7, 9)));
-      dodecahedron.put(9, new Room(9, Set.of(8, 10, 18)));
-      dodecahedron.put(10, new Room(10, Set.of(2, 9, 11)));
-      dodecahedron.put(11, new Room(11, Set.of(10, 12, 19)));
-      dodecahedron.put(12, new Room(12, Set.of(3, 11, 13)));
-      dodecahedron.put(13, new Room(13, Set.of(12, 14, 20)));
-      dodecahedron.put(14, new Room(14, Set.of(4, 13, 15)));
-      dodecahedron.put(15, new Room(15, Set.of(6, 14, 16)));
-      dodecahedron.put(16, new Room(16, Set.of(15, 17, 20)));
-      dodecahedron.put(17, new Room(17, Set.of(7, 16, 18)));
-      dodecahedron.put(18, new Room(18, Set.of(9, 17, 19)));
-      dodecahedron.put(19, new Room(19, Set.of(11, 18, 20)));
-      dodecahedron.put(20, new Room(20, Set.of(13, 16, 19)));
-      rooms = Map.copyOf(dodecahedron);
-    }
-  }
-
-  private static class Room {
-    final int number;
-    final Set<Integer> tunnelsLeadTo;
-
-    Room(int number, Set<Integer> tunnelsLeadTo) {
-      this.number = number;
-      this.tunnelsLeadTo = tunnelsLeadTo;
-    }
-  }
-
-  private enum Item {
-    PLAYER,
-    WUMPUS,
-    PIT_1,
-    PIT_2,
-    BAT_1,
-    BAT_2,
-  }
-}
-
-record RoomDescription(int number, Set<Integer> tunnelsLeadTo, Set<Warning> warnings) {
-  enum Warning {
-    WUMPUS,
-    PIT,
-    BAT,
-  }
-}
-
-enum GameState {
-  OPEN,
-  WON,
-  LOST,
-}
-
-enum GameEvent {
-  PLAYER_FELL_INTO_PIT,
-  PLAYER_SNATCHED_BY_BAT,
-  PLAYER_BUMPED_WUMPUS,
-  ARROW_MISSED,
-  ARROW_HIT_WUMPUS,
-  ARROW_HIT_PLAYER,
-  WUMPUS_ATE_PLAYERS,
 }

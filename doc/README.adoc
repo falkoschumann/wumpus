@@ -19,7 +19,7 @@
 * Wenn sich eine Grube in einem der angrenzenden Räume befindet, warne den Spieler
 * Wenn sich eine Fledermaus in einem der angrenzenden Räume befindet, warne den Spieler
 
-=== Gehe in nächsten Raum
+=== Bewege Spieler
 
 * Frage Spieler nach den angrenzenden Raum, in den er sich bewegen will
 * Wenn der Spieler einen Raum mit einer Grube betritt, fällt er hinein und hat verloren
