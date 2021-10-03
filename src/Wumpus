@@ -23,7 +23,11 @@ public class App {
     var backend = new MessageHandler();
     var frontend = new Console();
 
-    frontend.onStartGameCommand = backend::handle;
+    frontend.onStartGameCommand = c -> {
+      backend.handle(c);
+      var result = backend.handle(new DetermineGameStateQuery());
+      frontend.display(result);
+    };
     frontend.onMovePlayerCommand = c -> {
       backend.handle(c);
       var result = backend.handle(new DetermineGameStateQuery());
@@ -56,11 +60,7 @@ interface CommandStatus {}
 record Success() implements CommandStatus {}
 record Failure(String errorMessage) implements CommandStatus {}
 
-record StartGameCommand(boolean sameSetUp) {
-  StartGameCommand() {
-    this(false);
-  }
-}
+record StartGameCommand(boolean sameSetUp) {}
 
 record MovePlayerCommand(int room) {}
 
@@ -106,36 +106,43 @@ class MessageHandler {
   private final RandomGenerator random = RandomGenerator.of("Xoroshiro128PlusPlus");
 
   private final Cave cave = new Cave();
-  private DetermineGameStateQueryResult.State state = DetermineGameStateQueryResult.State.OPEN;
-  private int numberOfArrows = 5;
+  private final Map<Item, Integer> initialItems = new TreeMap<>();
+  private DetermineGameStateQueryResult.State state;
+  private int numberOfArrows;
 
   CommandStatus handle(StartGameCommand command) {
-    // TODO Wenn command.sameSetUp(), starte mit gleichem Ausgangszustand
+    if (!command.sameSetUp() || initialItems.isEmpty()) {
+      positionItems();
+    }
+    startGame();
+    return new Success();
+  }
+
+  private void positionItems() {
     do {
       positionPlayer();
       positionWumpus();
       positionPits();
       positionBats();
     } while (hasCrossovers());
-    return new Success();
   }
 
   private void positionPlayer() {
-    cave.position(Item.PLAYER, randomRoom());
+    initialItems.put(Item.PLAYER, randomRoom());
   }
 
   private void positionWumpus() {
-    cave.position(Item.WUMPUS, randomRoom());
+    initialItems.put(Item.WUMPUS, randomRoom());
   }
 
   private void positionPits() {
-    cave.position(Item.PIT_1, randomRoom());
-    cave.position(Item.PIT_2, randomRoom());
+    initialItems.put(Item.PIT_1, randomRoom());
+    initialItems.put(Item.PIT_2, randomRoom());
   }
 
   private void positionBats() {
-    cave.position(Item.BAT_1, randomRoom());
-    cave.position(Item.BAT_2, randomRoom());
+    initialItems.put(Item.BAT_1, randomRoom());
+    initialItems.put(Item.BAT_2, randomRoom());
   }
 
   private boolean hasCrossovers() {
@@ -144,7 +151,7 @@ class MessageHandler {
         if (item1 == item2) {
           continue;
         }
-        if (cave.positionOf(item1).number() == cave.positionOf(item2).number()) {
+        if (Objects.equals(initialItems.get(item1), initialItems.get(item2))) {
           return true;
         }
       }
@@ -154,6 +161,17 @@ class MessageHandler {
 
   private int randomRoom() {
     return random.nextInt(1, 21);
+  }
+
+  private void startGame() {
+    cave.position(Item.PLAYER, initialItems.get(Item.PLAYER));
+    cave.position(Item.WUMPUS, initialItems.get(Item.WUMPUS));
+    cave.position(Item.PIT_1, initialItems.get(Item.PIT_1));
+    cave.position(Item.PIT_2, initialItems.get(Item.PIT_2));
+    cave.position(Item.BAT_1, initialItems.get(Item.BAT_1));
+    cave.position(Item.BAT_2, initialItems.get(Item.BAT_2));
+    state = DetermineGameStateQueryResult.State.OPEN;
+    numberOfArrows = 5;
   }
 
   CommandStatus handle(MovePlayerCommand command) {
@@ -169,7 +187,7 @@ class MessageHandler {
     } else if (cave.positionOf(Item.BAT_1).number() == command.room()
         || cave.positionOf(Item.BAT_2).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_SNATCHED_BY_BAT);
-      movePlayerRandomly(command);
+      movePlayerRandomly(command.room());
     }
     return new Success();
   }
@@ -194,11 +212,11 @@ class MessageHandler {
     }
   }
 
-  private void movePlayerRandomly(MovePlayerCommand command) {
-    var i = command.room();
+  private void movePlayerRandomly(int currentRoom) {
+    var i = currentRoom;
     do {
       i = randomRoom();
-    } while (i == command.room());
+    } while (i == currentRoom);
     handle(new MovePlayerCommand(i));
   }
 
@@ -349,12 +367,15 @@ class Console {
   void run() {
     showInstructions();
     startGame();
-    while (isGameOpen()) {
-      exploreRoom();
-      switch (action()) {
-        case SHOOT -> shootCrookedArrow();
-        case MOVE -> movePlayer();
+    while (true) {
+      while (isGameOpen()) {
+        exploreRoom();
+        switch (action()) {
+          case SHOOT -> shootCrookedArrow();
+          case MOVE -> movePlayer();
+        }
       }
+      restartGame();
     }
   }
 
@@ -411,9 +432,13 @@ class Console {
   }
 
   private void startGame() {
+    startGame(false);
+  }
+
+  private void startGame(boolean sameSetUp) {
     System.out.println("Hunt the Wumpus");
     System.out.println();
-    onStartGameCommand.accept(new StartGameCommand());
+    onStartGameCommand.accept(new StartGameCommand(sameSetUp));
   }
 
   private boolean isGameOpen() {
@@ -505,6 +530,14 @@ class Console {
         case BAT -> System.out.println("Bats nearby!");
       }
     }
+  }
+
+  private void restartGame() {
+    System.out.print("Same set-up (y/n) ");
+    var s = (String) input.next();
+    var sameSetUp = Objects.equals(s, "y");
+    startGame(sameSetUp);
+    System.out.println();
   }
 
   void display(DetermineGameStateQueryResult result) {
