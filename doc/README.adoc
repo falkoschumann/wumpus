@@ -33,7 +33,7 @@
 * Frage Spieler nach Anzahl der Räume, die der Pfeil durchqueren soll (1-5)
 * Frage nach den Räumen, die der Pfeil durchqueren soll
 * Der nächste zu durchquerende Raum muss sich vom vorletzten unterscheiden (p(i) <> p(i-2))
-* Wenn zum angegebener Raum kein Tunnel führt, nimmt der krumme Pfeil einen zufälligen Tunnel
+* Wenn zum angegebener Raum kein Tunnel führt, nimmt der Pfeil einen zufälligen Tunnel
 * Wenn der Pfeil den Wumpus trifft, hat der Spieler gewonnen
 * Wenn der Pfeil den Spieler trifft, hat der Spieler verloren
 * Wenn der Pfeil den Wumpus nicht trifft, bewegt sich der Wumpus einen Raum weiter (P=0,75) oder bleibt stehen (P=0,25)

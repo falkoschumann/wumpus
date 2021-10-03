@@ -1,5 +1,6 @@
 #!/usr/bin/java --source 17
 
+import java.util.Arrays;
 import java.util.InputMismatchException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -63,7 +64,7 @@ record StartGameCommand(boolean sameSetUp) {
 
 record MovePlayerCommand(int room) {}
 
-record ShootCrookedArrowCommand() {}
+record ShootCrookedArrowCommand(List<Integer> rooms) {}
 
 record ExploreRoomQuery() {}
 
@@ -106,6 +107,7 @@ class MessageHandler {
 
   private final Cave cave = new Cave();
   private DetermineGameStateQueryResult.State state = DetermineGameStateQueryResult.State.OPEN;
+  private int numberOfArrows = 5;
 
   CommandStatus handle(StartGameCommand command) {
     // TODO Wenn command.sameSetUp(), starte mit gleichem Ausgangszustand
@@ -156,17 +158,10 @@ class MessageHandler {
 
   CommandStatus handle(MovePlayerCommand command) {
     cave.position(Item.PLAYER, command.room());
-
     if (cave.positionOf(Item.WUMPUS).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_BUMPED_WUMPUS);
-      var tunnel = randomMoveWumpus();
-      if (tunnel == 4) {
-        onEvent.accept(GameNotification.WUMPUS_ATE_PLAYERS);
-        state = DetermineGameStateQueryResult.State.LOST;
-      } else {
-        var tunnels = List.copyOf(cave.positionOf(Item.WUMPUS).tunnelsLeadTo());
-        cave.position(Item.WUMPUS, tunnels.get(tunnel - 1));
-      }
+      moveWumpusRandomly();
+      checkPlayerAndWumpusInSameRoom();
     } else if (cave.positionOf(Item.PIT_1).number() == command.room()
         || cave.positionOf(Item.PIT_2).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_FELL_INTO_PIT);
@@ -174,23 +169,80 @@ class MessageHandler {
     } else if (cave.positionOf(Item.BAT_1).number() == command.room()
         || cave.positionOf(Item.BAT_2).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_SNATCHED_BY_BAT);
-      var i = command.room();
-      do {
-        i = randomRoom();
-      } while (i == command.room());
-      handle(new MovePlayerCommand(i));
+      movePlayerRandomly(command);
+    }
+    return new Success();
+  }
+
+  private void moveWumpusRandomly() {
+    var tunnelIndex = random.nextInt(4);
+    if (tunnelIndex < 3) {
+      // Wumpus don't stay still
+      var tunnels = List.copyOf(cave.positionOf(Item.WUMPUS).tunnelsLeadTo());
+      var roomNumber = tunnels.get(tunnelIndex);
+      cave.position(Item.WUMPUS, roomNumber);
+    }
+  }
+
+  private boolean checkPlayerAndWumpusInSameRoom() {
+    if (cave.positionOf(Item.WUMPUS).number() == cave.positionOf(Item.PLAYER).number()) {
+      onEvent.accept(GameNotification.WUMPUS_ATE_PLAYERS);
+      state = DetermineGameStateQueryResult.State.LOST;
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  private void movePlayerRandomly(MovePlayerCommand command) {
+    var i = command.room();
+    do {
+      i = randomRoom();
+    } while (i == command.room());
+    handle(new MovePlayerCommand(i));
+  }
+
+  CommandStatus handle(ShootCrookedArrowCommand command) {
+    var room = cave.positionOf(Item.PLAYER);
+    for (int number : command.rooms()) {
+      number = validateNextRoom(room, number);
+      room = cave.getRoom(number);
+
+      if (cave.positionOf(Item.WUMPUS).number() == room.number()) {
+        onEvent.accept(GameNotification.ARROW_HIT_WUMPUS);
+        state = DetermineGameStateQueryResult.State.WON;
+        return new Success();
+      } else if (cave.positionOf(Item.PLAYER).number() == room.number()) {
+        onEvent.accept(GameNotification.ARROW_HIT_PLAYER);
+        state = DetermineGameStateQueryResult.State.LOST;
+        return new Success();
+      } else {
+        moveWumpusRandomly();
+        if (checkPlayerAndWumpusInSameRoom()) {
+          return new Success();
+        }
+      }
+    }
+
+    numberOfArrows--;
+    if (numberOfArrows == 0) {
+      state = DetermineGameStateQueryResult.State.LOST;
     }
 
     return new Success();
   }
 
-  private int randomMoveWumpus() {
-    return random.nextInt(1, 5);
+  private int validateNextRoom(Room current, int next) {
+    if (!current.tunnelsLeadTo().contains(next)) {
+      var tunnelIndex = randomTunnelIndex();
+      var tunnels = List.copyOf(current.tunnelsLeadTo());
+      next = tunnels.get(tunnelIndex);
+    }
+    return next;
   }
 
-  CommandStatus handle(ShootCrookedArrowCommand command) {
-    // TODO Implement shoot crooked arrow
-    return new Success();
+  private int randomTunnelIndex() {
+    return random.nextInt(3);
   }
 
   ExploreRoomQueryResult handle(@SuppressWarnings("unused") ExploreRoomQuery query) {
@@ -253,9 +305,13 @@ class Cave {
     rooms = Map.copyOf(dodecahedron);
   }
 
+  Room getRoom(Integer number) {
+    return rooms.get(number);
+  }
+
   Room positionOf(Item item) {
     var number = items.get(item);
-    return rooms.get(number);
+    return getRoom(number);
   }
 
   void position(Item item, int atRoom) {
@@ -295,7 +351,10 @@ class Console {
     startGame();
     while (isGameOpen()) {
       exploreRoom();
-      movePlayer();
+      switch (action()) {
+        case SHOOT -> shootCrookedArrow();
+        case MOVE -> movePlayer();
+      }
     }
   }
 
@@ -363,6 +422,42 @@ class Console {
 
   private void exploreRoom() {
     onExploreRoomQuery.accept(new ExploreRoomQuery());
+  }
+
+  private Action action() {
+    do {
+      System.out.print("Shoot or move (s/m) ");
+      var s = (String) input.next();
+      if (Objects.equals(s, "s")) {
+        return Action.SHOOT;
+      } else if (Objects.equals(s, "m")) {
+        return Action.MOVE;
+      }
+      System.out.println();
+    } while (true);
+  }
+
+  private void shootCrookedArrow() {
+    var numberOfRooms = 0;
+    do {
+      System.out.print("No. of rooms (1-5) ");
+      numberOfRooms = input.nextInt();
+    } while (numberOfRooms < 1 || numberOfRooms > 5);
+
+    var path = new int[numberOfRooms];
+    for (var i = 0; i < numberOfRooms; i++) {
+      System.out.print("Room # ");
+      path[i] = input.nextInt();
+
+      if (i >= 2 && path[i] == path[i-2]) {
+        System.out.println("Arrows aren't that crooked - Try another room");
+        i--;
+      }
+    }
+    System.out.println();
+
+    var pathList = Arrays.stream(path).boxed().toList();
+    onShootCrookedArrowCommand.accept(new ShootCrookedArrowCommand(pathList));
   }
 
   private void movePlayer() {
@@ -438,4 +533,9 @@ class Console {
       case WUMPUS_ATE_PLAYERS -> System.out.println("TSK TSK TSK - Wumpus got you!");
     }
   }
+}
+
+enum Action {
+  SHOOT,
+  MOVE,
 }
