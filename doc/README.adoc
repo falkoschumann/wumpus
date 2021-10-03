@@ -4,6 +4,7 @@
 
 === Starte Spiel
 
+* Wenn bereits ein Spiel existiert, frage den Spieler, ob er mit dem gleichen Ausgangszustand starten will.
 * Die Höhle des Wumpus besteht aus 20 Räumen mit je 3 Tunneln zu einem anderen Raum (vergleiche Dodekaeder)
 * Platziere in 2 zufälligen Räumen je eine bodenlose Grube
 * Platziere in 2 zufälligen Räumen je eine Superfledermaus

@@ -1,9 +1,9 @@
 #!/usr/bin/java --source 17
 
-import java.util.Collection;
 import java.util.InputMismatchException;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Scanner;
@@ -19,8 +19,30 @@ import java.util.stream.Collectors;
 
 public class App {
   public static void main(String[] args) {
-    MessageHandler backend = new MessageHandler();
-    var frontend = new Wumpus(backend);
+    var backend = new MessageHandler();
+    var frontend = new Console();
+
+    frontend.onStartGameCommand = backend::handle;
+    frontend.onMovePlayerCommand = c -> {
+      backend.handle(c);
+      var result = backend.handle(new DetermineGameStateQuery());
+      frontend.display(result);
+    };
+    frontend.onShootCrookedArrowCommand = c -> {
+      backend.handle(c);
+      var result = backend.handle(new DetermineGameStateQuery());
+      frontend.display(result);
+    };
+    frontend.onExploreRoomQuery = q -> {
+      var result = backend.handle(q);
+      frontend.display(result);
+    };
+    frontend.onDetermineGameStateQuery = q -> {
+      var result = backend.handle(q);
+      frontend.display(result);
+    };
+    backend.onEvent = frontend::display;
+
     frontend.run();
   }
 }
@@ -33,7 +55,11 @@ interface CommandStatus {}
 record Success() implements CommandStatus {}
 record Failure(String errorMessage) implements CommandStatus {}
 
-record StartGameCommand() {}
+record StartGameCommand(boolean sameSetUp) {
+  StartGameCommand() {
+    this(false);
+  }
+}
 
 record MovePlayerCommand(int room) {}
 
@@ -74,24 +100,15 @@ enum GameNotification {
  * ****************************************************************************/
 
 class MessageHandler {
-  private enum Item {
-    PLAYER,
-    WUMPUS,
-    PIT_1,
-    PIT_2,
-    BAT_1,
-    BAT_2,
-  }
-
   Consumer<GameNotification> onEvent;
 
   private final RandomGenerator random = RandomGenerator.of("Xoroshiro128PlusPlus");
 
   private final Cave cave = new Cave();
-  private final Map<Item, Integer> itemRooms = new TreeMap<>();
   private DetermineGameStateQueryResult.State state = DetermineGameStateQueryResult.State.OPEN;
 
-  CommandStatus handle(@SuppressWarnings("unused") StartGameCommand command) {
+  CommandStatus handle(StartGameCommand command) {
+    // TODO Wenn command.sameSetUp(), starte mit gleichem Ausgangszustand
     do {
       positionPlayer();
       positionWumpus();
@@ -102,30 +119,30 @@ class MessageHandler {
   }
 
   private void positionPlayer() {
-    itemRooms.put(Item.PLAYER, randomRoom());
+    cave.position(Item.PLAYER, randomRoom());
   }
 
   private void positionWumpus() {
-    itemRooms.put(Item.WUMPUS, randomRoom());
+    cave.position(Item.WUMPUS, randomRoom());
   }
 
   private void positionPits() {
-    itemRooms.put(Item.PIT_1, randomRoom());
-    itemRooms.put(Item.PIT_2, randomRoom());
+    cave.position(Item.PIT_1, randomRoom());
+    cave.position(Item.PIT_2, randomRoom());
   }
 
   private void positionBats() {
-    itemRooms.put(Item.BAT_1, randomRoom());
-    itemRooms.put(Item.BAT_2, randomRoom());
+    cave.position(Item.BAT_1, randomRoom());
+    cave.position(Item.BAT_2, randomRoom());
   }
 
   private boolean hasCrossovers() {
-    for (var e1 : itemRooms.entrySet()) {
-      for (var e2 : itemRooms.entrySet()) {
-        if (e1.getKey() == e2.getKey()) {
+    for (var item1 : Item.values()) {
+      for (var item2 : Item.values()) {
+        if (item1 == item2) {
           continue;
         }
-        if (e1.getValue().equals(e2.getValue())) {
+        if (cave.positionOf(item1).number() == cave.positionOf(item2).number()) {
           return true;
         }
       }
@@ -138,71 +155,78 @@ class MessageHandler {
   }
 
   CommandStatus handle(MovePlayerCommand command) {
-    if (cave.containsWumpus(command.room())) {
+    cave.position(Item.PLAYER, command.room());
+
+    if (cave.positionOf(Item.WUMPUS).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_BUMPED_WUMPUS);
-      var tunnel = random.nextInt(1, 5);
+      var tunnel = randomMoveWumpus();
       if (tunnel == 4) {
-        // TODO Wumpus stays sill
+        onEvent.accept(GameNotification.WUMPUS_ATE_PLAYERS);
+        state = DetermineGameStateQueryResult.State.LOST;
       } else {
-        // TODO Wumpus move through tunnel
+        var tunnels = List.copyOf(cave.positionOf(Item.WUMPUS).tunnelsLeadTo());
+        cave.position(Item.WUMPUS, tunnels.get(tunnel - 1));
       }
-      state = DetermineGameStateQueryResult.State.LOST;
-      return new Success();
-    }
-    if (cave.containsPit(command.room())) {
+    } else if (cave.positionOf(Item.PIT_1).number() == command.room()
+        || cave.positionOf(Item.PIT_2).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_FELL_INTO_PIT);
       state = DetermineGameStateQueryResult.State.LOST;
-      return new Success();
-    }
-    if (cave.containsBat(command.room())) {
+    } else if (cave.positionOf(Item.BAT_1).number() == command.room()
+        || cave.positionOf(Item.BAT_2).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_SNATCHED_BY_BAT);
       var i = command.room();
       do {
         i = randomRoom();
       } while (i == command.room());
-      command = new MovePlayerCommand(i);
-      // TODO Check for new hazards
+      handle(new MovePlayerCommand(i));
     }
-    itemRooms.put(Item.PLAYER, command.room());
+
     return new Success();
+  }
+
+  private int randomMoveWumpus() {
+    return random.nextInt(1, 5);
   }
 
   CommandStatus handle(ShootCrookedArrowCommand command) {
-    // TODO Implement method
+    // TODO Implement shoot crooked arrow
     return new Success();
   }
 
-  ExploreRoomQueryResult handle(ExploreRoomQuery query) {
+  ExploreRoomQueryResult handle(@SuppressWarnings("unused") ExploreRoomQuery query) {
     var room = currentRoom();
-    var warnings = checkRooms(room.tunnelsLeadTo);
-    return new ExploreRoomQueryResult(room.number, room.tunnelsLeadTo, warnings);
+    var warnings = checkRooms(room.tunnelsLeadTo());
+    return new ExploreRoomQueryResult(room.number(), room.tunnelsLeadTo(), warnings);
   }
 
   private Room currentRoom() {
-    return cave.playersRoom();
+    return cave.positionOf(Item.PLAYER);
   }
 
   private Set<ExploreRoomQueryResult.Warning> checkRooms(Set<Integer> numbers) {
     var warnings = new LinkedHashSet<ExploreRoomQueryResult.Warning>();
-    if (cave.containsWumpus(numbers)) {
+    if (numbers.contains(cave.positionOf(Item.WUMPUS).number())) {
       warnings.add(ExploreRoomQueryResult.Warning.WUMPUS);
     }
-    if (cave.containsPit(numbers)) {
+    if (numbers.contains(cave.positionOf(Item.PIT_1).number())
+        || numbers.contains(cave.positionOf(Item.PIT_2).number())) {
       warnings.add(ExploreRoomQueryResult.Warning.PIT);
     }
-    if (cave.containsBat(numbers)) {
+    if (numbers.contains(cave.positionOf(Item.BAT_1).number())
+        || numbers.contains(cave.positionOf(Item.BAT_2).number())) {
       warnings.add(ExploreRoomQueryResult.Warning.BAT);
     }
     return Set.copyOf(warnings);
   }
 
-  DetermineGameStateQueryResult handle(DetermineGameStateQuery query) {
+  DetermineGameStateQueryResult handle(@SuppressWarnings("unused") DetermineGameStateQuery query) {
     return new DetermineGameStateQueryResult(state);
   }
 }
 
 class Cave {
   private final Map<Integer, Room> rooms;
+  private final Map<Item, Integer> items = new TreeMap<>();
 
   Cave() {
     var dodecahedron = new LinkedHashMap<Integer, Room>();
@@ -229,72 +253,47 @@ class Cave {
     rooms = Map.copyOf(dodecahedron);
   }
 
-  int player() {
-    var number = itemRooms.get(Item.PLAYER);
-    return rooms.get(number).number;
+  Room positionOf(Item item) {
+    var number = items.get(item);
+    return rooms.get(number);
   }
 
-  void positionPlayer(int room) {
-    itemRooms.put(Item.PLAYER, room);
+  void position(Item item, int atRoom) {
+    items.put(item, atRoom);
   }
+}
 
-  boolean containsWumpus(int room) {
-    return containsWumpus(Set.of(room));
-  }
+record Room(int number, Set<Integer> tunnelsLeadTo) {}
 
-  void positionWumpus(int room) {
-    itemRooms.put(Item.WUMPUS, room);
-  }
-
-  boolean containsWumpus(Collection<Integer> rooms) {
-    return rooms.contains(itemRooms.get(Item.WUMPUS));
-  }
-
-  boolean containsPit(int room) {
-    return containsPit(Set.of(room));
-  }
-
-  boolean containsPit(Collection<Integer> rooms) {
-    return rooms.contains(itemRooms.get(Item.PIT_1)) || rooms.contains(itemRooms.get(Item.PIT_2));
-  }
-
-  boolean containsBat(int room) {
-    return containsBat(Set.of(room));
-  }
-
-  boolean containsBat(Collection<Integer> rooms) {
-    return rooms.contains(itemRooms.get(Item.BAT_1)) || rooms.contains(itemRooms.get(Item.BAT_2));
-  }
-
-  private static class Room {
-    final int number;
-    final Set<Integer> tunnelsLeadTo;
-
-    Room(int number, Set<Integer> tunnelsLeadTo) {
-      this.number = number;
-      this.tunnelsLeadTo = tunnelsLeadTo;
-    }
-  }
+enum Item {
+  PLAYER,
+  WUMPUS,
+  PIT_1,
+  PIT_2,
+  BAT_1,
+  BAT_2,
 }
 
 /* ****************************************************************************
  * Frontend
  * ****************************************************************************/
 
-class Wumpus {
-  private final Scanner input = new Scanner(System.in);
-  private final MessageHandler messageHandler;
-  private ExploreRoomQueryResult room;
+class Console {
+  Consumer<StartGameCommand> onStartGameCommand;
+  Consumer<MovePlayerCommand> onMovePlayerCommand;
+  Consumer<ShootCrookedArrowCommand> onShootCrookedArrowCommand;
+  Consumer<ExploreRoomQuery> onExploreRoomQuery;
+  Consumer<DetermineGameStateQuery> onDetermineGameStateQuery;
 
-  Wumpus(MessageHandler messageHandler) {
-    this.messageHandler = messageHandler;
-    messageHandler.onEvent = this::print;
-  }
+  private final Scanner input = new Scanner(System.in);
+  private int currentRoom;
+  private Set<Integer> tunnelsLeadTo;
+  private boolean gameOpen = true;
 
   void run() {
     showInstructions();
     startGame();
-    while (gameIsOpen()) {
+    while (isGameOpen()) {
       exploreRoom();
       movePlayer();
     }
@@ -355,41 +354,15 @@ class Wumpus {
   private void startGame() {
     System.out.println("Hunt the Wumpus");
     System.out.println();
-    messageHandler.handle(new StartGameCommand());
+    onStartGameCommand.accept(new StartGameCommand());
   }
 
-  private boolean gameIsOpen() {
-    var result = messageHandler.handle(new DetermineGameStateQuery());
-    return result.state() == DetermineGameStateQueryResult.State.OPEN;
+  private boolean isGameOpen() {
+    return gameOpen;
   }
 
   private void exploreRoom() {
-    room = messageHandler.handle(new ExploreRoomQuery());
-    printRoom();
-    printTunnels();
-    printWarnings();
-    System.out.println();
-  }
-
-  private void printRoom() {
-    System.out.println("You are in room " + room.number());
-  }
-
-  private void printTunnels() {
-    var tunnels = room.tunnelsLeadTo().stream()
-      .map(String::valueOf)
-      .collect(Collectors.joining(", "));
-    System.out.println("Tunnels lead to " + tunnels);
-  }
-
-  private void printWarnings() {
-    for (var e : room.warnings()) {
-      switch (e) {
-        case WUMPUS -> System.out.println("I smell a Wumpus!");
-        case PIT -> System.out.println("I feel a draft");
-        case BAT -> System.out.println("Bats nearby!");
-      }
-    }
+    onExploreRoomQuery.accept(new ExploreRoomQuery());
   }
 
   private void movePlayer() {
@@ -397,8 +370,8 @@ class Wumpus {
       try {
         System.out.print("Where to ");
         var i = input.nextInt();
-        if (room.tunnelsLeadTo().contains(i)) {
-          messageHandler.handle(new MovePlayerCommand(i));
+        if (tunnelsLeadTo.contains(i)) {
+          onMovePlayerCommand.accept(new MovePlayerCommand(i));
           break;
         }
       } catch (InputMismatchException e) {
@@ -409,7 +382,51 @@ class Wumpus {
     System.out.println();
   }
 
-  private void print(GameNotification event) {
+  void display(ExploreRoomQueryResult result) {
+    currentRoom = result.number();
+    tunnelsLeadTo = result.tunnelsLeadTo();
+    printRoom();
+    printTunnels();
+    printWarnings(result.warnings());
+    System.out.println();
+  }
+
+  private void printRoom() {
+    System.out.println("You are in room " + currentRoom);
+  }
+
+  private void printTunnels() {
+    var tunnels = tunnelsLeadTo.stream()
+      .map(String::valueOf)
+      .collect(Collectors.joining(", "));
+    System.out.println("Tunnels lead to " + tunnels);
+  }
+
+  private void printWarnings(Set<ExploreRoomQueryResult.Warning> warnings) {
+    for (var e : warnings) {
+      switch (e) {
+        case WUMPUS -> System.out.println("I smell a Wumpus!");
+        case PIT -> System.out.println("I feel a draft");
+        case BAT -> System.out.println("Bats nearby!");
+      }
+    }
+  }
+
+  void display(DetermineGameStateQueryResult result) {
+    switch (result.state()) {
+      case OPEN -> gameOpen = true;
+      case LOST -> {
+        System.out.println("HA HA HA - You lose!");
+        gameOpen = false;
+      }
+      case WON -> {
+        System.out.println("HEE HEE HEE - The wumpus'll getcha next time!!");
+        gameOpen = false;
+      }
+    }
+  }
+
+  void display(GameNotification event) {
     switch (event) {
       case PLAYER_FELL_INTO_PIT -> System.out.println("YYYIIIIEEEE ... fell in pit");
       case PLAYER_SNATCHED_BY_BAT ->
