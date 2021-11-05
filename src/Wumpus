@@ -21,33 +21,7 @@ import java.util.stream.Collectors;
 public class App {
   public static void main(String[] args) {
     var backend = new MessageHandler();
-    var frontend = new Console();
-
-    frontend.onStartGameCommand = c -> {
-      backend.handle(c);
-      var result = backend.handle(new DetermineGameStateQuery());
-      frontend.display(result);
-    };
-    frontend.onMovePlayerCommand = c -> {
-      backend.handle(c);
-      var result = backend.handle(new DetermineGameStateQuery());
-      frontend.display(result);
-    };
-    frontend.onShootCrookedArrowCommand = c -> {
-      backend.handle(c);
-      var result = backend.handle(new DetermineGameStateQuery());
-      frontend.display(result);
-    };
-    frontend.onExploreRoomQuery = q -> {
-      var result = backend.handle(q);
-      frontend.display(result);
-    };
-    frontend.onDetermineGameStateQuery = q -> {
-      var result = backend.handle(q);
-      frontend.display(result);
-    };
-    backend.onEvent = frontend::display;
-
+    var frontend = new Console(backend);
     frontend.run();
   }
 }
@@ -353,16 +327,17 @@ enum Item {
  * ****************************************************************************/
 
 class Console {
-  Consumer<StartGameCommand> onStartGameCommand;
-  Consumer<MovePlayerCommand> onMovePlayerCommand;
-  Consumer<ShootCrookedArrowCommand> onShootCrookedArrowCommand;
-  Consumer<ExploreRoomQuery> onExploreRoomQuery;
-  Consumer<DetermineGameStateQuery> onDetermineGameStateQuery;
-
   private final Scanner input = new Scanner(System.in);
+  private final MessageHandler messageHandler;
   private int currentRoom;
   private Set<Integer> tunnelsLeadTo;
   private boolean gameOpen = true;
+
+  Console(MessageHandler messageHandler) {
+    this.messageHandler = messageHandler;
+
+    messageHandler.onEvent = this::display;
+  }
 
   void run() {
     showInstructions();
@@ -438,7 +413,9 @@ class Console {
   private void startGame(boolean sameSetUp) {
     System.out.println("Hunt the Wumpus");
     System.out.println();
-    onStartGameCommand.accept(new StartGameCommand(sameSetUp));
+    messageHandler.handle(new StartGameCommand(sameSetUp));
+    var result = messageHandler.handle(new DetermineGameStateQuery());
+    display(result);
   }
 
   private boolean isGameOpen() {
@@ -446,7 +423,8 @@ class Console {
   }
 
   private void exploreRoom() {
-    onExploreRoomQuery.accept(new ExploreRoomQuery());
+    var result = messageHandler.handle(new ExploreRoomQuery());
+    display(result);
   }
 
   private Action action() {
@@ -482,7 +460,9 @@ class Console {
     System.out.println();
 
     var pathList = Arrays.stream(path).boxed().toList();
-    onShootCrookedArrowCommand.accept(new ShootCrookedArrowCommand(pathList));
+    messageHandler.handle(new ShootCrookedArrowCommand(pathList));
+    var result = messageHandler.handle(new DetermineGameStateQuery());
+    display(result);
   }
 
   private void movePlayer() {
@@ -491,7 +471,9 @@ class Console {
         System.out.print("Where to ");
         var i = input.nextInt();
         if (tunnelsLeadTo.contains(i)) {
-          onMovePlayerCommand.accept(new MovePlayerCommand(i));
+          messageHandler.handle(new MovePlayerCommand(i));
+          var result = messageHandler.handle(new DetermineGameStateQuery());
+          display(result);
           break;
         }
       } catch (InputMismatchException e) {
@@ -502,7 +484,7 @@ class Console {
     System.out.println();
   }
 
-  void display(ExploreRoomQueryResult result) {
+  private void display(ExploreRoomQueryResult result) {
     currentRoom = result.number();
     tunnelsLeadTo = result.tunnelsLeadTo();
     printRoom();
@@ -540,7 +522,7 @@ class Console {
     System.out.println();
   }
 
-  void display(DetermineGameStateQueryResult result) {
+  private void display(DetermineGameStateQueryResult result) {
     switch (result.state()) {
       case OPEN -> gameOpen = true;
       case LOST -> {
@@ -554,7 +536,7 @@ class Console {
     }
   }
 
-  void display(GameNotification event) {
+  private void display(GameNotification event) {
     switch (event) {
       case PLAYER_FELL_INTO_PIT -> System.out.println("YYYIIIIEEEE ... fell in pit");
       case PLAYER_SNATCHED_BY_BAT ->
