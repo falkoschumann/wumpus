@@ -14,21 +14,19 @@ import java.util.function.Consumer;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 
-/* ****************************************************************************
- * App
- * ****************************************************************************/
+// region App
 
-public class App {
+public class Wumpus {
   public static void main(String[] args) {
     var backend = new MessageHandler();
-    var frontend = new Console(backend);
+    var frontend = new UserInterface(backend);
     frontend.run();
   }
 }
 
-/* ****************************************************************************
- * Contract
- * ****************************************************************************/
+// endregion
+
+// region Contract
 
 interface CommandStatus {}
 record Success() implements CommandStatus {}
@@ -50,7 +48,7 @@ record ExploreRoomQueryResult(int number, Set<Integer> tunnelsLeadTo, Set<Warnin
   }
 }
 
-record DetermineGameStateQuery () {}
+record DetermineGameStateQuery() {}
 
 record DetermineGameStateQueryResult(State state) {
   enum State {
@@ -70,9 +68,9 @@ enum GameNotification {
   WUMPUS_ATE_PLAYERS,
 }
 
-/* ****************************************************************************
- * Backend
- * ****************************************************************************/
+// endregion
+
+// region Backend
 
 class MessageHandler {
   Consumer<GameNotification> onEvent;
@@ -322,18 +320,18 @@ enum Item {
   BAT_2,
 }
 
-/* ****************************************************************************
- * Frontend
- * ****************************************************************************/
+// endregion
 
-class Console {
+// region Frontend
+
+class UserInterface {
   private final Scanner input = new Scanner(System.in);
   private final MessageHandler messageHandler;
   private int currentRoom;
   private Set<Integer> tunnelsLeadTo;
   private boolean gameOpen = true;
 
-  Console(MessageHandler messageHandler) {
+  UserInterface(MessageHandler messageHandler) {
     this.messageHandler = messageHandler;
 
     messageHandler.onEvent = this::display;
@@ -554,3 +552,5 @@ enum Action {
   SHOOT,
   MOVE,
 }
+
+// endregion
