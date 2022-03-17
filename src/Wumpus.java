@@ -1,5 +1,3 @@
-#!/usr/bin/java --source 17
-
 import java.util.Arrays;
 import java.util.InputMismatchException;
 import java.util.LinkedHashMap;
@@ -65,7 +63,7 @@ enum GameNotification {
   ARROW_MISSED,
   ARROW_HIT_WUMPUS,
   ARROW_HIT_PLAYER,
-  WUMPUS_ATE_PLAYERS,
+  WUMPUS_ATE_PLAYER,
 }
 
 // endregion
@@ -176,7 +174,7 @@ class MessageHandler {
 
   private boolean checkPlayerAndWumpusInSameRoom() {
     if (cave.positionOf(Item.WUMPUS).number() == cave.positionOf(Item.PLAYER).number()) {
-      onEvent.accept(GameNotification.WUMPUS_ATE_PLAYERS);
+      onEvent.accept(GameNotification.WUMPUS_ATE_PLAYER);
       state = DetermineGameStateQueryResult.State.LOST;
       return true;
     } else {
@@ -235,7 +233,7 @@ class MessageHandler {
     return random.nextInt(3);
   }
 
-  ExploreRoomQueryResult handle(@SuppressWarnings("unused") ExploreRoomQuery query) {
+  ExploreRoomQueryResult handle(ExploreRoomQuery query) {
     var room = currentRoom();
     var warnings = checkRooms(room.tunnelsLeadTo());
     return new ExploreRoomQueryResult(room.number(), room.tunnelsLeadTo(), warnings);
@@ -261,7 +259,7 @@ class MessageHandler {
     return Set.copyOf(warnings);
   }
 
-  DetermineGameStateQueryResult handle(@SuppressWarnings("unused") DetermineGameStateQuery query) {
+  DetermineGameStateQueryResult handle(DetermineGameStateQuery query) {
     return new DetermineGameStateQueryResult(state);
   }
 }
@@ -543,7 +541,7 @@ class UserInterface {
       case ARROW_MISSED -> System.out.println("Missed");
       case ARROW_HIT_WUMPUS -> System.out.println("AHA! You got the Wumpus!");
       case ARROW_HIT_PLAYER -> System.out.println("OUCH! Arrow got you!");
-      case WUMPUS_ATE_PLAYERS -> System.out.println("TSK TSK TSK - Wumpus got you!");
+      case WUMPUS_ATE_PLAYER -> System.out.println("TSK TSK TSK - Wumpus got you!");
     }
   }
 }
