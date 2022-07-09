@@ -26,10 +26,6 @@ public class Wumpus {
 
 // region Contract
 
-interface CommandStatus {}
-record Success() implements CommandStatus {}
-record Failure(String errorMessage) implements CommandStatus {}
-
 record StartGameCommand(boolean sameSetUp) {}
 
 record MovePlayerCommand(int room) {}
@@ -80,12 +76,11 @@ class MessageHandler {
   private DetermineGameStateQueryResult.State state;
   private int numberOfArrows;
 
-  CommandStatus handle(StartGameCommand command) {
+  void handle(StartGameCommand command) {
     if (!command.sameSetUp() || initialItems.isEmpty()) {
       positionItems();
     }
     startGame();
-    return new Success();
   }
 
   private void positionItems() {
@@ -144,7 +139,7 @@ class MessageHandler {
     numberOfArrows = 5;
   }
 
-  CommandStatus handle(MovePlayerCommand command) {
+  void handle(MovePlayerCommand command) {
     cave.position(Item.PLAYER, command.room());
     if (cave.positionOf(Item.WUMPUS).number() == command.room()) {
       onEvent.accept(GameNotification.PLAYER_BUMPED_WUMPUS);
@@ -159,7 +154,6 @@ class MessageHandler {
       onEvent.accept(GameNotification.PLAYER_SNATCHED_BY_BAT);
       movePlayerRandomly(command.room());
     }
-    return new Success();
   }
 
   private void moveWumpusRandomly() {
@@ -190,7 +184,7 @@ class MessageHandler {
     handle(new MovePlayerCommand(i));
   }
 
-  CommandStatus handle(ShootCrookedArrowCommand command) {
+  void handle(ShootCrookedArrowCommand command) {
     var room = cave.positionOf(Item.PLAYER);
     for (int number : command.rooms()) {
       number = validateNextRoom(room, number);
@@ -199,15 +193,15 @@ class MessageHandler {
       if (cave.positionOf(Item.WUMPUS).number() == room.number()) {
         onEvent.accept(GameNotification.ARROW_HIT_WUMPUS);
         state = DetermineGameStateQueryResult.State.WON;
-        return new Success();
+        return;
       } else if (cave.positionOf(Item.PLAYER).number() == room.number()) {
         onEvent.accept(GameNotification.ARROW_HIT_PLAYER);
         state = DetermineGameStateQueryResult.State.LOST;
-        return new Success();
+        return;
       } else {
         moveWumpusRandomly();
         if (checkPlayerAndWumpusInSameRoom()) {
-          return new Success();
+          return;
         }
       }
     }
@@ -216,8 +210,6 @@ class MessageHandler {
     if (numberOfArrows == 0) {
       state = DetermineGameStateQueryResult.State.LOST;
     }
-
-    return new Success();
   }
 
   private int validateNextRoom(Room current, int next) {
@@ -262,60 +254,60 @@ class MessageHandler {
   DetermineGameStateQueryResult handle(DetermineGameStateQuery query) {
     return new DetermineGameStateQueryResult(state);
   }
-}
 
-class Cave {
-  private final Map<Integer, Room> rooms;
-  private final Map<Item, Integer> items = new TreeMap<>();
+  private class Cave {
+    private final Map<Integer, Room> rooms;
+    private final Map<Item, Integer> items = new TreeMap<>();
 
-  Cave() {
-    var dodecahedron = new LinkedHashMap<Integer, Room>();
-    dodecahedron.put(1, new Room(1, Set.of(2, 5, 8)));
-    dodecahedron.put(2, new Room(2, Set.of(1, 3, 10)));
-    dodecahedron.put(3, new Room(3, Set.of(2, 4, 12)));
-    dodecahedron.put(4, new Room(4, Set.of(3, 5, 14)));
-    dodecahedron.put(5, new Room(5, Set.of(1, 4, 6)));
-    dodecahedron.put(6, new Room(6, Set.of(5, 7, 15)));
-    dodecahedron.put(7, new Room(7, Set.of(6, 8, 17)));
-    dodecahedron.put(8, new Room(8, Set.of(1, 7, 9)));
-    dodecahedron.put(9, new Room(9, Set.of(8, 10, 18)));
-    dodecahedron.put(10, new Room(10, Set.of(2, 9, 11)));
-    dodecahedron.put(11, new Room(11, Set.of(10, 12, 19)));
-    dodecahedron.put(12, new Room(12, Set.of(3, 11, 13)));
-    dodecahedron.put(13, new Room(13, Set.of(12, 14, 20)));
-    dodecahedron.put(14, new Room(14, Set.of(4, 13, 15)));
-    dodecahedron.put(15, new Room(15, Set.of(6, 14, 16)));
-    dodecahedron.put(16, new Room(16, Set.of(15, 17, 20)));
-    dodecahedron.put(17, new Room(17, Set.of(7, 16, 18)));
-    dodecahedron.put(18, new Room(18, Set.of(9, 17, 19)));
-    dodecahedron.put(19, new Room(19, Set.of(11, 18, 20)));
-    dodecahedron.put(20, new Room(20, Set.of(13, 16, 19)));
-    rooms = Map.copyOf(dodecahedron);
+    Cave() {
+      var dodecahedron = new LinkedHashMap<Integer, Room>();
+      dodecahedron.put(1, new Room(1, Set.of(2, 5, 8)));
+      dodecahedron.put(2, new Room(2, Set.of(1, 3, 10)));
+      dodecahedron.put(3, new Room(3, Set.of(2, 4, 12)));
+      dodecahedron.put(4, new Room(4, Set.of(3, 5, 14)));
+      dodecahedron.put(5, new Room(5, Set.of(1, 4, 6)));
+      dodecahedron.put(6, new Room(6, Set.of(5, 7, 15)));
+      dodecahedron.put(7, new Room(7, Set.of(6, 8, 17)));
+      dodecahedron.put(8, new Room(8, Set.of(1, 7, 9)));
+      dodecahedron.put(9, new Room(9, Set.of(8, 10, 18)));
+      dodecahedron.put(10, new Room(10, Set.of(2, 9, 11)));
+      dodecahedron.put(11, new Room(11, Set.of(10, 12, 19)));
+      dodecahedron.put(12, new Room(12, Set.of(3, 11, 13)));
+      dodecahedron.put(13, new Room(13, Set.of(12, 14, 20)));
+      dodecahedron.put(14, new Room(14, Set.of(4, 13, 15)));
+      dodecahedron.put(15, new Room(15, Set.of(6, 14, 16)));
+      dodecahedron.put(16, new Room(16, Set.of(15, 17, 20)));
+      dodecahedron.put(17, new Room(17, Set.of(7, 16, 18)));
+      dodecahedron.put(18, new Room(18, Set.of(9, 17, 19)));
+      dodecahedron.put(19, new Room(19, Set.of(11, 18, 20)));
+      dodecahedron.put(20, new Room(20, Set.of(13, 16, 19)));
+      rooms = Map.copyOf(dodecahedron);
+    }
+
+    Room getRoom(Integer number) {
+      return rooms.get(number);
+    }
+
+    Room positionOf(Item item) {
+      var number = items.get(item);
+      return getRoom(number);
+    }
+
+    void position(Item item, int atRoom) {
+      items.put(item, atRoom);
+    }
   }
 
-  Room getRoom(Integer number) {
-    return rooms.get(number);
+  private record Room(int number, Set<Integer> tunnelsLeadTo) {}
+
+  private enum Item {
+    PLAYER,
+    WUMPUS,
+    PIT_1,
+    PIT_2,
+    BAT_1,
+    BAT_2,
   }
-
-  Room positionOf(Item item) {
-    var number = items.get(item);
-    return getRoom(number);
-  }
-
-  void position(Item item, int atRoom) {
-    items.put(item, atRoom);
-  }
-}
-
-record Room(int number, Set<Integer> tunnelsLeadTo) {}
-
-enum Item {
-  PLAYER,
-  WUMPUS,
-  PIT_1,
-  PIT_2,
-  BAT_1,
-  BAT_2,
 }
 
 // endregion
@@ -544,11 +536,11 @@ class UserInterface {
       case WUMPUS_ATE_PLAYER -> System.out.println("TSK TSK TSK - Wumpus got you!");
     }
   }
-}
 
-enum Action {
-  SHOOT,
-  MOVE,
+  private enum Action {
+    SHOOT,
+    MOVE,
+  }
 }
 
 // endregion
