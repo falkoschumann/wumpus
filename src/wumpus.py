@@ -1,3 +1,6 @@
+import random
+
+
 def display_instructions():
     print("Welcome to 'Hunt the Wumpus'")
     print("  The wumpus lives in a cave of 20 rooms. each room")
@@ -41,10 +44,70 @@ def display_instructions():
     print()
 
 
+def setup_cave():
+    return [
+        [2, 5, 8],
+        [1, 3, 10],
+        [2, 4, 12],
+        [3, 5, 14],
+        [1, 4, 6],
+        [5, 7, 15],
+        [6, 8, 17],
+        [1, 7, 9],
+        [8, 10, 18],
+        [2, 9, 11],
+        [10, 12, 19],
+        [3, 11, 13],
+        [12, 14, 20],
+        [4, 13, 15],
+        [6, 14, 16],
+        [15, 17, 20],
+        [7, 16, 18],
+        [9, 17, 19],
+        [11, 18, 20],
+        [13, 16, 19],
+    ]
+
+
+def fna():
+    return random.randint(0, 19)
+
+
+def fnb():
+    return random.randint(0, 2)
+
+
+def fnc():
+    return random.randint(0, 3)
+
+
+def check_for_crossovers(items):
+    for j in range(0, 6):
+        for k in range(0, 6):
+            if j != k and items[j] == items[k]:
+                return True
+    return False
+
+
+def locate_items():
+    """1 you, 2 wumpus, 3 & 4 pits, 5 & 6 bats"""
+    l = [0, 0, 0, 0, 0, 0]
+    while check_for_crossovers(l):
+        for j in range(0, 6):
+            l[j] = fna()
+    return l
+
+
 def main():
     i = input("Instructions (y/n)? ")
     if i == "y":
         display_instructions()
+    s = setup_cave()
+    l = locate_items()
+    m = l.copy()
+    # set number of arrows
+    a = 5
+    l = l[0]
 
 
 if __name__ == "__main__":
