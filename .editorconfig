@@ -1,5 +1,16 @@
 # EditorConfig is awesome: https://EditorConfig.org
 
+# Based on following Google Style Guides:
+# - C++: https://google.github.io/styleguide/cppguide.html
+# - C#: https://google.github.io/styleguide/csharp-style.html
+# - Go: https://google.github.io/styleguide/goguide.html
+# - HTML/CSS: https://google.github.io/styleguide/htmlcssguide.html
+# - JavaScript: https://google.github.io/styleguide/jsguide.html
+# - Java: https://google.github.io/styleguide/javaguide.html
+# - Python: https://google.github.io/styleguide/pyguide.html
+# - Shell: https://google.github.io/styleguide/shellguide.html
+# - TypeScript: https://google.github.io/styleguide/tsguide.html
+
 root = true
 
 [*]
@@ -9,7 +20,24 @@ end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
+max_line_length = 80
+
+[*.{md,py}]
+indent_size = 4
+
+[*.{cs,java,yaml}]
 max_line_length = 100
 
-[*.md]
-max_line_length = 80
+[*.{bat,cmd}]
+end_of_line = crlf
+charset = latin1
+
+[*.{csv,sln}]
+end_of_line = crlf
+
+[*.{html,xml,jsx,tsx}]
+max_line_length = 250
+
+[{Makefile,*.mk,*.go}]
+indent_style = tab
+indent_size = 4
