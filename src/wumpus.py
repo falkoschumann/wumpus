@@ -135,8 +135,13 @@ class Game:
         None
 
     def _move_wumpus(self):
-        # TODO implement move wumpus
-        None
+        k = self._fnc()
+        if k == 3:
+            if self.l[0] == self.l[1]:
+                print("Tsk tsk tsk - Wumpus got you!")
+                self.f = -1
+        else:
+            self.l[1] = self.s[self.l[1]][k]
 
     def move(self):
         self.f = 0
