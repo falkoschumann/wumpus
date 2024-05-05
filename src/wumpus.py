@@ -62,6 +62,30 @@ class Game:
     def set_number_of_arrows(self):
         self.a = 5
 
+    def run_the_game(self):
+        self.locate_items()
+        self.set_number_of_arrows()
+        print("Hunt the Wumpus")
+        while True:
+            print(self.l, self.a)
+            self.print_location_and_hazard_warnings()
+            o = self.choose_option()
+            if o == 1:
+                self.shoot()
+            else:
+                self.move()
+            if self.f == 0:
+                continue
+            if self.f > 0:
+                print("Hee hee hee - the Wumpus'll getcha next time!!")
+            else:
+                print("Ha ha ha - you lose!")
+            self.l = self.m.copy()
+            i = input("Same setup (y/n)? ")
+            if i != "y":
+                self.locate_items()
+            self.set_number_of_arrows()
+
     def instructions(self):
         print("Welcome to 'Hunt the Wumpus'")
         print("  The wumpus lives in a cave of 20 rooms. each room")
@@ -129,13 +153,11 @@ class Game:
         while True:
             i = input("Shoot or move (s/m)? ")
             if i == "s":
-                self.arrow()
-                break
+                return 1
             if i == "m":
-                self.move()
-                break
+                return 2
 
-    def arrow(self):
+    def shoot(self):
         self.f = 0
         # path of arrow
         p = [0, 0, 0, 0, 0]
@@ -230,14 +252,9 @@ def main():
     i = input("Instructions (y/n)? ")
     if i != "n":
         game.instructions()
-    game.locate_items()
-    game.set_number_of_arrows()
-    print(game.l)
 
     # Start the game
-    print("Hunt the Wumpus")
-    game.print_location_and_hazard_warnings()
-    game.choose_option()
+    game.run_the_game()
 
 
 if __name__ == "__main__":
