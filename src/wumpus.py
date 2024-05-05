@@ -9,7 +9,7 @@ import random
 class Game:
     def __init__(self):
         # cave: 20 rooms, 3 tunnels per room
-        self.s = [
+        self.cave = [
             [1, 4, 7],  # 0
             [0, 2, 9],  # 1
             [1, 3, 11],  # 2
@@ -31,10 +31,10 @@ class Game:
             [10, 17, 19],  # 18
             [12, 15, 18],  # 19
         ]
-        self.l = []  # rooms: 0 you, 1 wumpus, 2 & 3 pits, 4 & 5 bats
-        self.m = []  # memory of l
-        self.a = 0  # number of arrows
-        self.f = 0
+        self.locations = []  # rooms: 0 you, 1 wumpus, 2 & 3 pits, 4 & 5 bats
+        self.memo = []  # memory of l
+        self.arrows = 0  # number of arrows
+        self.state = 0
 
     def start(self):
         i = input("Instructions (y/n)? ")
@@ -51,13 +51,13 @@ class Game:
                 self._shoot()
             else:
                 self._move()
-            if self.f == 0:
+            if self.state == 0:
                 continue
-            if self.f > 0:
+            if self.state > 0:
                 print("Hee hee hee - the Wumpus'll getcha next time!!")
             else:
                 print("Ha ha ha - you lose!")
-            self.l = self.m.copy()
+            self.locations = self.memo.copy()
             i = input("Same setup (y/n)? ")
             if i != "y":
                 self._locate_items()
@@ -106,27 +106,27 @@ class Game:
         print()
 
     def _locate_items(self):
-        self.l = [0, 0, 0, 0, 0, 0]
+        self.locations = [0, 0, 0, 0, 0, 0]
         while self._check_for_crossovers():
             for j in range(0, 6):
-                self.l[j] = self._fna()
-        self.m = self.l.copy()
+                self.locations[j] = self._fna()
+        self.memo = self.locations.copy()
 
     def _check_for_crossovers(self):
         for j in range(0, 6):
             for k in range(0, 6):
-                if j != k and self.l[j] == self.l[k]:
+                if j != k and self.locations[j] == self.locations[k]:
                     return True
         return False
 
     def _set_number_of_arrows(self):
-        self.a = 5
+        self.arrows = 5
 
     def _print_location_and_hazard_warnings(self):
         print()
         for j in range(1, 6):
             for k in range(0, 3):
-                if self.s[self.l[0]][k] != self.l[j]:
+                if self.cave[self.locations[0]][k] != self.locations[j]:
                     continue
                 if j == 1:
                     print("I smell a wumpus")
@@ -134,12 +134,12 @@ class Game:
                     print("I feel a draft")
                 else:
                     print("Bats nearby")
-        print("You are in room", self.l[0])
+        print("You are in room", self.locations[0])
         print(
             "Tunnels lead to rooms",
-            self.s[self.l[0]][0],
-            self.s[self.l[0]][1],
-            self.s[self.l[0]][2],
+            self.cave[self.locations[0]][0],
+            self.cave[self.locations[0]][1],
+            self.cave[self.locations[0]][2],
         )
         print()
 
@@ -152,7 +152,7 @@ class Game:
                 return 2
 
     def _shoot(self):
-        self.f = 0
+        self.state = 0
         # path of arrow
         p = [0, 0, 0, 0, 0]
         while True:
@@ -167,21 +167,21 @@ class Game:
                     print("Arrows aren't that crooked - try another room")
             break
         # shoot arrow
-        l = self.l[0]
+        l = self.locations[0]
         for k in range(0, j9):
             tunnel_found = False
             for k1 in range(0, 3):
-                if self.s[l][k1] == p[k]:
+                if self.cave[l][k1] == p[k]:
                     tunnel_found = True
                     l = p[k]
                     self._see_if_arrow_hits_user_or_wumpus(l)
-                    if self.f != 0:
+                    if self.state != 0:
                         self._ammo_check()
                         return
             if not tunnel_found:
-                l = self.s[l][self._fnb()]
+                l = self.cave[l][self._fnb()]
                 self._see_if_arrow_hits_user_or_wumpus(l)
-                if self.f != 0:
+                if self.state != 0:
                     self._ammo_check()
                     return
         print("Missed")
@@ -189,52 +189,52 @@ class Game:
         self._ammo_check()
 
     def _ammo_check(self):
-        self.a -= 1
-        if self.a == 0:
-            self.f = -1
+        self.arrows -= 1
+        if self.arrows == 0:
+            self.state = -1
 
     def _move_wumpus(self):
         k = self._fnc()
         if k == 3:
-            if self.l[0] == self.l[1]:
+            if self.locations[0] == self.locations[1]:
                 print("Tsk tsk tsk - Wumpus got you!")
-                self.f = -1
+                self.state = -1
         else:
-            self.l[1] = self.s[self.l[1]][k]
+            self.locations[1] = self.cave[self.locations[1]][k]
 
     def _see_if_arrow_hits_user_or_wumpus(self, l):
-        if l == self.l[1]:
+        if l == self.locations[1]:
             print("Aha! You got the Wumpus!")
-            self.f = 1
-        elif l == self.l[0]:
+            self.state = 1
+        elif l == self.locations[0]:
             print("Ouch! Arrow got you!")
-            self.f = -1
+            self.state = -1
 
     def _move(self):
-        self.f = 0
+        self.state = 0
         while True:
             l = int(input("Where to? "))
             if l < 0 or l > 19:
                 continue
-            if self._check_if_legal_move(l) or l == self.l[0]:
+            if self._check_if_legal_move(l) or l == self.locations[0]:
                 break
             print("Not possible -")
         # check for hazards
         while True:
-            self.l[0] = l
+            self.locations[0] = l
             # wumpus
-            if l == self.l[1]:
+            if l == self.locations[1]:
                 print("...Oops! Bumped a Wumpus!")
                 self._move_wumpus()
-                if self.f != 0:
+                if self.state != 0:
                     return
             # pit
-            if l in (self.l[2], self.l[3]):
+            if l in (self.locations[2], self.locations[3]):
                 print("YYYIIIIEEEE . . . Fell in pit")
-                self.f = -1
+                self.state = -1
                 return
             # bats
-            if l in (self.l[4], self.l[5]):
+            if l in (self.locations[4], self.locations[5]):
                 print("ZAP--Super bat snatch! Elsewhereville for you!")
                 l = self._fna()
                 continue
@@ -242,7 +242,7 @@ class Game:
 
     def _check_if_legal_move(self, l):
         for k in range(0, 3):
-            if self.s[self.l[0]][k] == l:
+            if self.cave[self.locations[0]][k] == l:
                 return True
         return False
 
