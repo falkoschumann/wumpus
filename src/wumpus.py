@@ -1,3 +1,8 @@
+"""Hunt the Wumpus.
+
+Original by Gregory Yob, 1973.
+"""
+
 import random
 
 
@@ -124,15 +129,47 @@ class Game:
         while True:
             i = input("Shoot or move (s/m)? ")
             if i == "s":
-                self.shoot()
+                self.arrow()
                 break
             if i == "m":
                 self.move()
                 break
 
-    def shoot(self):
-        # TODO implement shoot
-        None
+    def arrow(self):
+        self.f = 0
+        # path of arrow
+        p = [0, 0, 0, 0, 0]
+        while True:
+            j9 = int(input("Number of rooms (1-5)? "))
+            if j9 < 1 or j9 > 5:
+                continue
+            for k in range(0, j9):
+                while True:
+                    p[k] = int(input("Room number? "))
+                    if k <= 1 or p[k] != p[k - 2]:
+                        break
+                    print("Arrows aren't that crooked - try another room")
+            break
+        # shoot arrow
+        l = self.l[0]
+        for k in range(0, j9):
+            for k1 in range(0, 3):
+                if self.s[l][k1] == p[k]:
+                    l = p[k]
+                    self._see_if_arrow_hits_user_or_wumpus(l)
+                    if self.f != 0:
+                        return
+            # no tunnel for arrow
+            l = self.s[l][self._fnb()]
+            self._see_if_arrow_hits_user_or_wumpus(l)
+            if self.f != 0:
+                return
+        print("Missed")
+        self._move_wumpus()
+        # ammo check
+        self.a -= 1
+        if self.a == 0:
+            self.f = -1
 
     def _move_wumpus(self):
         k = self._fnc()
@@ -142,6 +179,14 @@ class Game:
                 self.f = -1
         else:
             self.l[1] = self.s[self.l[1]][k]
+
+    def _see_if_arrow_hits_user_or_wumpus(self, l):
+        if l == self.l[1]:
+            print("Aha! You got the Wumpus!")
+            self.f = 1
+        elif l == self.l[0]:
+            print("Ouch! Arrow got you!")
+            self.f = -1
 
     def move(self):
         self.f = 0
