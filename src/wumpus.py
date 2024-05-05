@@ -169,20 +169,26 @@ class Game:
         # shoot arrow
         l = self.l[0]
         for k in range(0, j9):
+            tunnel_found = False
             for k1 in range(0, 3):
                 if self.s[l][k1] == p[k]:
+                    tunnel_found = True
                     l = p[k]
                     self._see_if_arrow_hits_user_or_wumpus(l)
                     if self.f != 0:
+                        self._ammo_check()
                         return
-            # no tunnel for arrow
-            l = self.s[l][self._fnb()]
-            self._see_if_arrow_hits_user_or_wumpus(l)
-            if self.f != 0:
-                return
+            if not tunnel_found:
+                l = self.s[l][self._fnb()]
+                self._see_if_arrow_hits_user_or_wumpus(l)
+                if self.f != 0:
+                    self._ammo_check()
+                    return
         print("Missed")
         self._move_wumpus()
-        # ammo check
+        self._ammo_check()
+
+    def _ammo_check(self):
         self.a -= 1
         if self.a == 0:
             self.f = -1
