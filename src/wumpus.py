@@ -236,7 +236,7 @@ class Game:
             # bats
             if l == self.l[4] or l == self.l[5]:
                 print("ZAP--Super bat snatch! Elsewhereville for you!")
-                self.l[0] = self._fna()
+                l = self._fna()
                 continue
             break
 
