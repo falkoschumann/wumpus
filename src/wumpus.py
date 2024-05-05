@@ -36,44 +36,21 @@ class Game:
         self.a = 0  # number of arrows
         self.f = 0
 
-    def _fna(self):
-        return random.randint(0, 19)
-
-    def _fnb(self):
-        return random.randint(0, 2)
-
-    def _fnc(self):
-        return random.randint(0, 3)
-
-    def _locate_items(self):
-        self.l = [0, 0, 0, 0, 0, 0]
-        while self._check_for_crossovers():
-            for j in range(0, 6):
-                self.l[j] = self._fna()
-        self.m = self.l.copy()
-
-    def _check_for_crossovers(self):
-        for j in range(0, 6):
-            for k in range(0, 6):
-                if j != k and self.l[j] == self.l[k]:
-                    return True
-        return False
-
-    def _set_number_of_arrows(self):
-        self.a = 5
-
-    def run_the_game(self):
+    def start(self):
+        i = input("Instructions (y/n)? ")
+        if i != "n":
+            self._instructions()
         self._locate_items()
         self._set_number_of_arrows()
         print("Hunt the Wumpus")
         while True:
             # print(self.l, self.a)
-            self.print_location_and_hazard_warnings()
-            o = self.choose_option()
+            self._print_location_and_hazard_warnings()
+            o = self._choose_option()
             if o == 1:
-                self.shoot()
+                self._shoot()
             else:
-                self.move()
+                self._move()
             if self.f == 0:
                 continue
             if self.f > 0:
@@ -86,7 +63,7 @@ class Game:
                 self._locate_items()
             self._set_number_of_arrows()
 
-    def instructions(self):
+    def _instructions(self):
         print("Welcome to 'Hunt the Wumpus'")
         print("  The wumpus lives in a cave of 20 rooms. each room")
         print("has 3 tunnels leading to other rooms. (Look at a")
@@ -128,7 +105,24 @@ class Game:
         print(" Pit    -  'I feel a draft'")
         print()
 
-    def print_location_and_hazard_warnings(self):
+    def _locate_items(self):
+        self.l = [0, 0, 0, 0, 0, 0]
+        while self._check_for_crossovers():
+            for j in range(0, 6):
+                self.l[j] = self._fna()
+        self.m = self.l.copy()
+
+    def _check_for_crossovers(self):
+        for j in range(0, 6):
+            for k in range(0, 6):
+                if j != k and self.l[j] == self.l[k]:
+                    return True
+        return False
+
+    def _set_number_of_arrows(self):
+        self.a = 5
+
+    def _print_location_and_hazard_warnings(self):
         print()
         for j in range(1, 6):
             for k in range(0, 3):
@@ -149,7 +143,7 @@ class Game:
         )
         print()
 
-    def choose_option(self):
+    def _choose_option(self):
         while True:
             i = input("Shoot or move (s/m)? ")
             if i == "s":
@@ -157,7 +151,7 @@ class Game:
             if i == "m":
                 return 2
 
-    def shoot(self):
+    def _shoot(self):
         self.f = 0
         # path of arrow
         p = [0, 0, 0, 0, 0]
@@ -187,13 +181,13 @@ class Game:
             if self.f != 0:
                 return
         print("Missed")
-        self.move_wumpus()
+        self._move_wumpus()
         # ammo check
         self.a -= 1
         if self.a == 0:
             self.f = -1
 
-    def move_wumpus(self):
+    def _move_wumpus(self):
         k = self._fnc()
         if k == 3:
             if self.l[0] == self.l[1]:
@@ -210,7 +204,7 @@ class Game:
             print("Ouch! Arrow got you!")
             self.f = -1
 
-    def move(self):
+    def _move(self):
         self.f = 0
         while True:
             l = int(input("Where to? "))
@@ -225,16 +219,16 @@ class Game:
             # wumpus
             if l == self.l[1]:
                 print("...Oops! Bumped a Wumpus!")
-                self.move_wumpus()
+                self._move_wumpus()
                 if self.f != 0:
                     return
             # pit
-            if l == self.l[2] or l == self.l[3]:
+            if l in (self.l[2], self.l[3]):
                 print("YYYIIIIEEEE . . . Fell in pit")
                 self.f = -1
                 return
             # bats
-            if l == self.l[4] or l == self.l[5]:
+            if l in (self.l[4], self.l[5]):
                 print("ZAP--Super bat snatch! Elsewhereville for you!")
                 l = self._fna()
                 continue
@@ -246,15 +240,19 @@ class Game:
                 return True
         return False
 
+    def _fna(self):
+        return random.randint(0, 19)
+
+    def _fnb(self):
+        return random.randint(0, 2)
+
+    def _fnc(self):
+        return random.randint(0, 3)
+
 
 def main():
     game = Game()
-    i = input("Instructions (y/n)? ")
-    if i != "n":
-        game.instructions()
-
-    # Start the game
-    game.run_the_game()
+    game.start()
 
 
 if __name__ == "__main__":
