@@ -6,12 +6,9 @@ bats. The only weapon the player has is a bow with 5 crooked arrows.
 
 ## Stories
 
-### Show Instructions
-
--   Optional show instructions at start.
-
 ### Start Game
 
+-   Optional show instructions at first start.
 -   Create cave with 20 rooms each with 3 tunnels leading to other rooms
     (dodecahedron).
 -   Place items without crossovers:
@@ -19,13 +16,14 @@ bats. The only weapon the player has is a bow with 5 crooked arrows.
     -   1 room with the player
     -   2 rooms have bottomless pits
     -   2 rooms have super bats
+-   When game over than reset last game setup or create a new setup.
 
 ### Loop the Game
 
--   Decide if game is open, won or lost.
+-   Determine hazard warnings.
 -   Determine current room and tunnels lead to other rooms.
--   Determine warnings.
 -   Ask player to move or shoot.
+-   Decide if game is open, won or lost.
 
 ### Move to Room
 
@@ -35,9 +33,6 @@ bats. The only weapon the player has is a bow with 5 crooked arrows.
 -   If you enter a room with bottemless pit, you fall into the pit and lose.
 -   If you enter a room with a super bat, it grabs you and takes you to some
     other room (which might be troblesome).
--   If the wumpus is in one of the next rooms, warn the player.
--   If a bat is in one of the next rooms, warn the player.
--   If a pit is in one of the next rooms, warn the player.
 
 ### Shoot a crooked Arrow
 
@@ -47,6 +42,6 @@ bats. The only weapon the player has is a bow with 5 crooked arrows.
 -   If the arrow hits you, you lose.
 -   If the arrow miss, the wumpus wake up (see above).
 
-### Restart Game
+## Dodecahedron
 
--   Reset last game setup or create a new setup.
+![Dodecahedron](doc/dodecahedron.png)
