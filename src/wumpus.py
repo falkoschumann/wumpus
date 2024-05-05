@@ -45,7 +45,7 @@ class Game:
     def _fnc(self):
         return random.randint(0, 3)
 
-    def locate_items(self):
+    def _locate_items(self):
         self.l = [0, 0, 0, 0, 0, 0]
         while self._check_for_crossovers():
             for j in range(0, 6):
@@ -59,15 +59,15 @@ class Game:
                     return True
         return False
 
-    def set_number_of_arrows(self):
+    def _set_number_of_arrows(self):
         self.a = 5
 
     def run_the_game(self):
-        self.locate_items()
-        self.set_number_of_arrows()
+        self._locate_items()
+        self._set_number_of_arrows()
         print("Hunt the Wumpus")
         while True:
-            print(self.l, self.a)
+            # print(self.l, self.a)
             self.print_location_and_hazard_warnings()
             o = self.choose_option()
             if o == 1:
@@ -83,8 +83,8 @@ class Game:
             self.l = self.m.copy()
             i = input("Same setup (y/n)? ")
             if i != "y":
-                self.locate_items()
-            self.set_number_of_arrows()
+                self._locate_items()
+            self._set_number_of_arrows()
 
     def instructions(self):
         print("Welcome to 'Hunt the Wumpus'")
@@ -187,13 +187,13 @@ class Game:
             if self.f != 0:
                 return
         print("Missed")
-        self._move_wumpus()
+        self.move_wumpus()
         # ammo check
         self.a -= 1
         if self.a == 0:
             self.f = -1
 
-    def _move_wumpus(self):
+    def move_wumpus(self):
         k = self._fnc()
         if k == 3:
             if self.l[0] == self.l[1]:
@@ -225,7 +225,7 @@ class Game:
             # wumpus
             if l == self.l[1]:
                 print("...Oops! Bumped a Wumpus!")
-                self._move_wumpus()
+                self.move_wumpus()
                 if self.f != 0:
                     return
             # pit
