@@ -39,18 +39,17 @@ class Game:
     def start(self):
         i = input("Instructions (y/n)? ")
         if i != "n":
-            self._instructions()
+            self._display_instructions()
         self._locate_items()
-        self._set_number_of_arrows()
+        self._reset_arrows()
         print("Hunt the Wumpus")
         while True:
-            # print(self.l, self.a)
-            self._print_location_and_hazard_warnings()
+            self._display_hazard_warnings_and_location()
             o = self._choose_option()
             if o == 1:
-                self._shoot()
+                self._shoot_arrow()
             else:
-                self._move()
+                self._move_player()
             if self.state == 0:
                 continue
             if self.state > 0:
@@ -61,9 +60,9 @@ class Game:
             i = input("Same setup (y/n)? ")
             if i != "y":
                 self._locate_items()
-            self._set_number_of_arrows()
+            self._reset_arrows()
 
-    def _instructions(self):
+    def _display_instructions(self):
         print("Welcome to 'Hunt the Wumpus'")
         print("  The wumpus lives in a cave of 20 rooms. each room")
         print("has 3 tunnels leading to other rooms. (Look at a")
@@ -119,10 +118,10 @@ class Game:
                     return True
         return False
 
-    def _set_number_of_arrows(self):
+    def _reset_arrows(self):
         self.arrows = 5
 
-    def _print_location_and_hazard_warnings(self):
+    def _display_hazard_warnings_and_location(self):
         print()
         for j in range(1, 6):
             for k in range(0, 3):
@@ -151,7 +150,7 @@ class Game:
             if i == "m":
                 return 2
 
-    def _shoot(self):
+    def _shoot_arrow(self):
         self.state = 0
         # path of arrow
         p = [0, 0, 0, 0, 0]
@@ -174,13 +173,13 @@ class Game:
                 if self.cave[l][k1] == p[k]:
                     tunnel_found = True
                     l = p[k]
-                    self._see_if_arrow_hits_user_or_wumpus(l)
+                    self._check_if_arrow_hits_user_or_wumpus(l)
                     if self.state != 0:
                         self._ammo_check()
                         return
             if not tunnel_found:
                 l = self.cave[l][self._fnb()]
-                self._see_if_arrow_hits_user_or_wumpus(l)
+                self._check_if_arrow_hits_user_or_wumpus(l)
                 if self.state != 0:
                     self._ammo_check()
                     return
@@ -202,7 +201,7 @@ class Game:
         else:
             self.locations[1] = self.cave[self.locations[1]][k]
 
-    def _see_if_arrow_hits_user_or_wumpus(self, l):
+    def _check_if_arrow_hits_user_or_wumpus(self, l):
         if l == self.locations[1]:
             print("Aha! You got the Wumpus!")
             self.state = 1
@@ -210,7 +209,7 @@ class Game:
             print("Ouch! Arrow got you!")
             self.state = -1
 
-    def _move(self):
+    def _move_player(self):
         self.state = 0
         while True:
             l = int(input("Where to? "))
